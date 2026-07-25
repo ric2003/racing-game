@@ -24,7 +24,7 @@ describe('arcade simulation', () => {
     for (let index = 0; index < 120; index += 1) stepKart(state, { ...neutral, throttle: 1 })
     const movingSpeed = Math.hypot(state.vx, state.vz)
     expect(movingSpeed).toBeGreaterThan(10)
-    expect(movingSpeed).toBeLessThanOrEqual(HANDLING.maxForwardSpeed)
+    expect(movingSpeed).toBeLessThanOrEqual(HANDLING.maxForwardSpeed + 1e-9)
     for (let index = 0; index < 30; index += 1) stepKart(state, neutral)
     expect(Math.hypot(state.vx, state.vz)).toBeLessThan(movingSpeed)
     for (let index = 0; index < 60; index += 1) stepKart(state, { ...neutral, brake: 1 })

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { CHECKPOINTS, TRACK_POINTS } from '../shared/track.js'
+import { CHECKPOINTS, nearestTrackPoint, TRACK_POINTS } from '../shared/track.js'
 import { TRACK_WIDTH } from '../shared/constants.js'
 
 export interface TrackVisual {
@@ -7,44 +7,67 @@ export interface TrackVisual {
   dispose: () => void
 }
 
+function createStripGeometry(leftOffset: number, rightOffset: number, y: number, alternatingGroups = false): THREE.BufferGeometry {
+  const positions: number[] = []
+  const indices: number[] = []
+  for (let index = 0; index < TRACK_POINTS.length; index += 1) {
+    const previous = TRACK_POINTS[(index - 1 + TRACK_POINTS.length) % TRACK_POINTS.length]
+    const point = TRACK_POINTS[index]
+    const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
+    const tangentX = next.x - previous.x
+    const tangentZ = next.z - previous.z
+    const tangentLength = Math.max(0.0001, Math.hypot(tangentX, tangentZ))
+    const sideX = tangentZ / tangentLength
+    const sideZ = -tangentX / tangentLength
+    positions.push(point.x + sideX * leftOffset, y, point.z + sideZ * leftOffset)
+    positions.push(point.x + sideX * rightOffset, y, point.z + sideZ * rightOffset)
+  }
+  for (let index = 0; index < TRACK_POINTS.length; index += 1) {
+    const next = (index + 1) % TRACK_POINTS.length
+    const left = index * 2
+    const right = left + 1
+    const nextLeft = next * 2
+    const nextRight = nextLeft + 1
+    indices.push(left, right, nextLeft, right, nextRight, nextLeft)
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  if (alternatingGroups) {
+    for (let index = 0; index < TRACK_POINTS.length; index += 1) {
+      geometry.addGroup(index * 6, 6, index % 2)
+    }
+  }
+  return geometry
+}
+
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0
+    return state / 0x1_0000_0000
+  }
+}
+
 export function createTrackMesh(): TrackVisual {
   const group = new THREE.Group()
-  const roadGeometry = new THREE.BoxGeometry(1, 0.18, 1)
+  const roadGeometry = createStripGeometry(TRACK_WIDTH / 2, -TRACK_WIDTH / 2, 0.03)
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x343547, roughness: 0.92 })
-  const edgeGeometry = new THREE.BoxGeometry(1, 0.5, 0.34)
+  const curbWidth = 0.65
+  const leftCurbGeometry = createStripGeometry(TRACK_WIDTH / 2 + curbWidth, TRACK_WIDTH / 2, 0.12, true)
+  const rightCurbGeometry = createStripGeometry(-TRACK_WIDTH / 2, -TRACK_WIDTH / 2 - curbWidth, 0.12, true)
   const edgeMaterials = [
     new THREE.MeshStandardMaterial({ color: 0xf7efe4, roughness: 0.7 }),
     new THREE.MeshStandardMaterial({ color: 0xff4f70, roughness: 0.7 }),
   ]
-
-  TRACK_POINTS.forEach((point, index) => {
-    const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
-    const dx = next.x - point.x
-    const dz = next.z - point.z
-    const length = Math.hypot(dx, dz) + 0.8
-    const angle = Math.atan2(dx, dz)
-    const road = new THREE.Mesh(roadGeometry, roadMaterial)
-    road.position.set((point.x + next.x) / 2, 0.02, (point.z + next.z) / 2)
-    road.rotation.y = angle
-    road.scale.set(TRACK_WIDTH, 1, length)
-    road.receiveShadow = true
-    group.add(road)
-
-    const sideX = Math.cos(angle)
-    const sideZ = -Math.sin(angle)
-    for (const side of [-1, 1]) {
-      const edge = new THREE.Mesh(edgeGeometry, edgeMaterials[index % 2])
-      edge.position.set(
-        road.position.x + sideX * side * (TRACK_WIDTH / 2 + 0.25),
-        0.28,
-        road.position.z + sideZ * side * (TRACK_WIDTH / 2 + 0.25),
-      )
-      edge.rotation.y = angle
-      edge.scale.set(1, 1, length)
-      edge.castShadow = true
-      group.add(edge)
-    }
-  })
+  const road = new THREE.Mesh(roadGeometry, roadMaterial)
+  road.receiveShadow = true
+  const leftCurb = new THREE.Mesh(leftCurbGeometry, edgeMaterials)
+  const rightCurb = new THREE.Mesh(rightCurbGeometry, edgeMaterials)
+  leftCurb.receiveShadow = true
+  rightCurb.receiveShadow = true
+  group.add(road, leftCurb, rightCurb)
 
   const markerGeometry = new THREE.BoxGeometry(TRACK_WIDTH - 0.8, 0.03, 0.55)
   const checkpointMaterial = new THREE.MeshStandardMaterial({ color: 0x62e6ff, emissive: 0x1b6c7b, emissiveIntensity: 0.5 })
@@ -60,21 +83,27 @@ export function createTrackMesh(): TrackVisual {
   const crownGeometry = new THREE.ConeGeometry(1.35, 3.4, 7)
   const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6e4939, roughness: 1 })
   const crownMaterial = new THREE.MeshStandardMaterial({ color: 0x2ca66f, roughness: 0.95 })
-  const treeCount = 40
+  const treeCount = 70
   const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, treeCount)
   const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, treeCount)
   const matrix = new THREE.Matrix4()
-  for (let index = 0; index < treeCount; index += 1) {
-    const angle = (index / treeCount) * Math.PI * 2 + (index % 3) * 0.09
-    const radiusX = index % 2 === 0 ? 63 : 34
-    const radiusZ = index % 2 === 0 ? 43 : 18
-    const x = Math.cos(angle) * radiusX
-    const z = Math.sin(angle) * radiusZ
+  const random = seededRandom(0x4e454f4e)
+  let placedTrees = 0
+  let attempts = 0
+  while (placedTrees < treeCount && attempts < 5_000) {
+    attempts += 1
+    const x = -118 + random() * 230
+    const z = -88 + random() * 178
+    if (nearestTrackPoint({ x, z }).distance < TRACK_WIDTH / 2 + 5) continue
+    if (Math.abs(x - 8) < 14 && Math.abs(z + 88) < 9) continue
     matrix.makeTranslation(x, 1.1, z)
-    trunks.setMatrixAt(index, matrix)
+    trunks.setMatrixAt(placedTrees, matrix)
     matrix.makeTranslation(x, 3.4, z)
-    crowns.setMatrixAt(index, matrix)
+    crowns.setMatrixAt(placedTrees, matrix)
+    placedTrees += 1
   }
+  trunks.count = placedTrees
+  crowns.count = placedTrees
   trunks.castShadow = true
   crowns.castShadow = true
   group.add(trunks, crowns)
@@ -82,8 +111,7 @@ export function createTrackMesh(): TrackVisual {
   const standMaterial = new THREE.MeshStandardMaterial({ color: 0x6d6ae8, roughness: 0.75 })
   const standGeometry = new THREE.BoxGeometry(17, 4, 6)
   const stand = new THREE.Mesh(standGeometry, standMaterial)
-  stand.position.set(18, 2, -45)
-  stand.rotation.y = -0.25
+  stand.position.set(8, 2, -88)
   stand.castShadow = true
   group.add(stand)
 
@@ -92,7 +120,8 @@ export function createTrackMesh(): TrackVisual {
     dispose: () => {
       roadGeometry.dispose()
       roadMaterial.dispose()
-      edgeGeometry.dispose()
+      leftCurbGeometry.dispose()
+      rightCurbGeometry.dispose()
       edgeMaterials.forEach((material) => material.dispose())
       markerGeometry.dispose()
       checkpointMaterial.dispose()

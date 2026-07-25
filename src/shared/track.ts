@@ -19,14 +19,13 @@ export interface Checkpoint extends Point2 {
   normalZ: number
 }
 
-const POINT_COUNT = 36
+const POINT_COUNT = 160
 
 export const TRACK_POINTS: Point2[] = Array.from({ length: POINT_COUNT }, (_, index) => {
   const angle = -Math.PI / 2 + (index / POINT_COUNT) * Math.PI * 2
-  const shape = 1 + Math.sin(angle * 3) * 0.08
   return {
-    x: Math.cos(angle) * 48 * shape,
-    z: Math.sin(angle) * 31 * (2 - shape),
+    x: Math.cos(angle) * (90 + Math.sin(angle * 3) * 8 + Math.sin(angle * 5) * 10),
+    z: Math.sin(angle) * (65 + Math.cos(angle * 4) * 8),
   }
 })
 
@@ -35,7 +34,11 @@ const segmentLengths = TRACK_POINTS.map((point, index) => {
   return Math.hypot(next.x - point.x, next.z - point.z)
 })
 const totalLength = segmentLengths.reduce((sum, length) => sum + length, 0)
-const cumulative = segmentLengths.map((_, index) => segmentLengths.slice(0, index).reduce((sum, length) => sum + length, 0))
+const cumulative: number[] = []
+segmentLengths.reduce((sum, length) => {
+  cumulative.push(sum)
+  return sum + length
+}, 0)
 
 export function nearestTrackPoint(point: Point2): TrackProjection {
   let best: TrackProjection | null = null
@@ -78,7 +81,11 @@ function checkpointAt(trackIndex: number, index: number): Checkpoint {
   }
 }
 
-export const CHECKPOINTS = [checkpointAt(0, 0), checkpointAt(9, 1), checkpointAt(18, 2), checkpointAt(27, 3)]
+const CHECKPOINT_COUNT = 8
+export const CHECKPOINTS = Array.from(
+  { length: CHECKPOINT_COUNT },
+  (_, index) => checkpointAt(index * (POINT_COUNT / CHECKPOINT_COUNT), index),
+)
 
 export const START_GRID = Array.from({ length: 4 }, (_, index) => {
   const start = CHECKPOINTS[0]

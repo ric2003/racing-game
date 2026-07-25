@@ -36,7 +36,7 @@ describe('race progress', () => {
     const race = createRaceProgress()
     let time = 100
     for (let lap = 0; lap < 3; lap += 1) {
-      for (const checkpoint of [1, 2, 3, 0]) {
+      for (const checkpoint of [...CHECKPOINTS.slice(1).map(({ index }) => index), 0]) {
         const crossing = cross(checkpoint)
         updateRaceProgress(race, crossing.previous, crossing.current, time += 100)
       }
@@ -46,12 +46,12 @@ describe('race progress', () => {
     expect(race.nextCheckpoint).toBe(1)
   })
 
-  it.each([
-    [1, 0.05, 0.2],
-    [2, 0.3, 0.45],
-    [3, 0.55, 0.7],
-    [0, 0.8, 0.95],
-  ])('ranks progress within checkpoint interval %s', (nextCheckpoint, behind, ahead) => {
+  it.each(CHECKPOINTS.map((_, stage) => {
+    const nextCheckpoint = (stage + 1) % CHECKPOINTS.length
+    const start = nearestTrackPoint(CHECKPOINTS[stage]).progress
+    const end = stage === CHECKPOINTS.length - 1 ? 1 : nearestTrackPoint(CHECKPOINTS[stage + 1]).progress
+    return [nextCheckpoint, start + (end - start) * 0.25, start + (end - start) * 0.75] as const
+  }))('ranks progress within checkpoint interval ending at %s', (nextCheckpoint, behind, ahead) => {
     const ranked = rankRace([
       entry('behind', { nextCheckpoint, trackProgress: behind }),
       entry('ahead', { nextCheckpoint, trackProgress: ahead }),
@@ -61,7 +61,7 @@ describe('race progress', () => {
 
   it.each([
     { checkpointIndex: 1, nextCheckpoint: 2, behindOffset: 0.001, aheadOffset: 0.006 },
-    { checkpointIndex: 3, nextCheckpoint: 3, behindOffset: -0.006, aheadOffset: -0.001 },
+    { checkpointIndex: 7, nextCheckpoint: 7, behindOffset: -0.006, aheadOffset: -0.001 },
   ])('ranks real progress around checkpoint $checkpointIndex', ({ checkpointIndex, nextCheckpoint, behindOffset, aheadOffset }) => {
     const boundary = nearestTrackPoint(CHECKPOINTS[checkpointIndex]).progress
     const ranked = rankRace([

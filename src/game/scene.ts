@@ -24,22 +24,23 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
 
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x8fd4e8)
-  scene.fog = new THREE.Fog(0x8fd4e8, 58, 150)
-  const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 240)
+  scene.fog = new THREE.Fog(0x8fd4e8, 90, 260)
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 340)
   camera.position.set(0, 10, -15)
 
   scene.add(new THREE.HemisphereLight(0xd9f5ff, 0x23462f, 2.4))
   const sun = new THREE.DirectionalLight(0xfff1d1, 3.2)
-  sun.position.set(-30, 45, -22)
+  sun.position.set(-50, 75, -40)
   sun.castShadow = true
   sun.shadow.mapSize.set(2048, 2048)
-  sun.shadow.camera.left = -80
-  sun.shadow.camera.right = 80
-  sun.shadow.camera.top = 80
-  sun.shadow.camera.bottom = -80
+  sun.shadow.camera.left = -125
+  sun.shadow.camera.right = 125
+  sun.shadow.camera.top = 125
+  sun.shadow.camera.bottom = -125
+  sun.shadow.camera.far = 300
   scene.add(sun)
 
-  const groundGeometry = new THREE.CircleGeometry(130, 64)
+  const groundGeometry = new THREE.CircleGeometry(185, 72)
   const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x4baf69, roughness: 1 })
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
   ground.rotation.x = -Math.PI / 2

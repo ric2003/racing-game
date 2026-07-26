@@ -7,36 +7,65 @@ export interface TrackVisual {
   dispose: () => void
 }
 
+type Position3 = [number, number, number]
+
+function appendTriangle(positions: number[], first: Position3, second: Position3, third: Position3): void {
+  const firstX = second[0] - first[0]
+  const firstZ = second[2] - first[2]
+  const secondX = third[0] - first[0]
+  const secondZ = third[2] - first[2]
+  const normalY = firstZ * secondX - firstX * secondZ
+  const ordered = normalY >= 0 ? [first, second, third] : [first, third, second]
+  for (const point of ordered) positions.push(...point)
+}
+
+function offsetPoint(point: { x: number; z: number }, sideX: number, sideZ: number, offset: number, y: number): Position3 {
+  return [point.x + sideX * offset, y, point.z + sideZ * offset]
+}
+
+function segmentSide(index: number): { x: number; z: number } {
+  const start = TRACK_POINTS[index]
+  const end = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
+  const dx = end.x - start.x
+  const dz = end.z - start.z
+  const length = Math.max(0.0001, Math.hypot(dx, dz))
+  return { x: dz / length, z: -dx / length }
+}
+
 function createStripGeometry(leftOffset: number, rightOffset: number, y: number, alternatingGroups = false): THREE.BufferGeometry {
   const positions: number[] = []
-  const indices: number[] = []
   for (let index = 0; index < TRACK_POINTS.length; index += 1) {
-    const previous = TRACK_POINTS[(index - 1 + TRACK_POINTS.length) % TRACK_POINTS.length]
     const point = TRACK_POINTS[index]
     const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
-    const tangentX = next.x - previous.x
-    const tangentZ = next.z - previous.z
-    const tangentLength = Math.max(0.0001, Math.hypot(tangentX, tangentZ))
-    const sideX = tangentZ / tangentLength
-    const sideZ = -tangentX / tangentLength
-    positions.push(point.x + sideX * leftOffset, y, point.z + sideZ * leftOffset)
-    positions.push(point.x + sideX * rightOffset, y, point.z + sideZ * rightOffset)
-  }
-  for (let index = 0; index < TRACK_POINTS.length; index += 1) {
-    const next = (index + 1) % TRACK_POINTS.length
-    const left = index * 2
-    const right = left + 1
-    const nextLeft = next * 2
-    const nextRight = nextLeft + 1
-    indices.push(left, right, nextLeft, right, nextRight, nextLeft)
+    const side = segmentSide(index)
+    const nextSide = segmentSide((index + 1) % TRACK_POINTS.length)
+    const startLeft = offsetPoint(point, side.x, side.z, leftOffset, y)
+    const startRight = offsetPoint(point, side.x, side.z, rightOffset, y)
+    const endLeft = offsetPoint(next, side.x, side.z, leftOffset, y)
+    const endRight = offsetPoint(next, side.x, side.z, rightOffset, y)
+    const joinLeft = offsetPoint(next, nextSide.x, nextSide.z, leftOffset, y)
+    const joinRight = offsetPoint(next, nextSide.x, nextSide.z, rightOffset, y)
+
+    appendTriangle(positions, startLeft, startRight, endLeft)
+    appendTriangle(positions, startRight, endRight, endLeft)
+    if (leftOffset * rightOffset < 0) {
+      const center: Position3 = [next.x, y, next.z]
+      appendTriangle(positions, endLeft, center, joinLeft)
+      appendTriangle(positions, endRight, joinRight, center)
+    } else {
+      appendTriangle(positions, endLeft, endRight, joinLeft)
+      appendTriangle(positions, endRight, joinRight, joinLeft)
+    }
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setIndex(indices)
   geometry.computeVertexNormals()
   if (alternatingGroups) {
     for (let index = 0; index < TRACK_POINTS.length; index += 1) {
-      geometry.addGroup(index * 6, 6, index % 2)
+      // Keep each segment and its corner join in the same curb color.
+      // Vertices are local because a naive shared offset polyline can fold
+      // across the road at the two tight hairpins.
+      geometry.addGroup(index * 12, 12, index % 2)
     }
   }
   return geometry
@@ -58,8 +87,8 @@ export function createTrackMesh(): TrackVisual {
   const leftCurbGeometry = createStripGeometry(TRACK_WIDTH / 2 + curbWidth, TRACK_WIDTH / 2, 0.12, true)
   const rightCurbGeometry = createStripGeometry(-TRACK_WIDTH / 2, -TRACK_WIDTH / 2 - curbWidth, 0.12, true)
   const edgeMaterials = [
-    new THREE.MeshStandardMaterial({ color: 0xf7efe4, roughness: 0.7 }),
-    new THREE.MeshStandardMaterial({ color: 0xff4f70, roughness: 0.7 }),
+    new THREE.MeshStandardMaterial({ color: 0xf7efe4, roughness: 0.7, depthWrite: false }),
+    new THREE.MeshStandardMaterial({ color: 0xff4f70, roughness: 0.7, depthWrite: false }),
   ]
   const road = new THREE.Mesh(roadGeometry, roadMaterial)
   road.receiveShadow = true
@@ -94,8 +123,8 @@ export function createTrackMesh(): TrackVisual {
     attempts += 1
     const x = -118 + random() * 230
     const z = -88 + random() * 178
-    if (nearestTrackPoint({ x, z }).distance < TRACK_WIDTH / 2 + 5) continue
-    if (Math.abs(x - 8) < 14 && Math.abs(z + 88) < 9) continue
+    if (nearestTrackPoint({ x, z }).distance < TRACK_WIDTH / 2 + 4) continue
+    if (Math.abs(x - 8) < 14 && Math.abs(z + 64) < 9) continue
     matrix.makeTranslation(x, 1.1, z)
     trunks.setMatrixAt(placedTrees, matrix)
     matrix.makeTranslation(x, 3.4, z)
@@ -111,7 +140,7 @@ export function createTrackMesh(): TrackVisual {
   const standMaterial = new THREE.MeshStandardMaterial({ color: 0x6d6ae8, roughness: 0.75 })
   const standGeometry = new THREE.BoxGeometry(17, 4, 6)
   const stand = new THREE.Mesh(standGeometry, standMaterial)
-  stand.position.set(8, 2, -88)
+  stand.position.set(8, 2, -64)
   stand.castShadow = true
   group.add(stand)
 

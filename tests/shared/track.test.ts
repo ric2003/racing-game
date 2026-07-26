@@ -1,5 +1,7 @@
+import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import { TRACK_WIDTH } from '../../src/shared/constants.js'
+import { createTrackMesh } from '../../src/game/track-mesh.js'
 import {
   CHECKPOINTS,
   legalTrackRadius,
@@ -25,20 +27,6 @@ function segmentsCross(first: Point2, second: Point2, third: Point2, fourth: Poi
   return firstSide * secondSide < 0 && thirdSide * fourthSide < 0
 }
 
-function offsetTrack(offset: number): Point2[] {
-  return TRACK_POINTS.map((point, index) => {
-    const previous = TRACK_POINTS[(index - 1 + TRACK_POINTS.length) % TRACK_POINTS.length]
-    const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
-    const tangentX = next.x - previous.x
-    const tangentZ = next.z - previous.z
-    const tangentLength = Math.hypot(tangentX, tangentZ)
-    return {
-      x: point.x + (tangentZ / tangentLength) * offset,
-      z: point.z - (tangentX / tangentLength) * offset,
-    }
-  })
-}
-
 function expectNoSelfIntersections(points: Point2[]): void {
   for (let left = 0; left < points.length; left += 1) {
     const leftNext = (left + 1) % points.length
@@ -55,7 +43,7 @@ describe('technical track geometry', () => {
   it('is a smooth closed circuit around twice the previous lap length', () => {
     const lengths = TRACK_POINTS.map((point, index) => distance(point, TRACK_POINTS[(index + 1) % TRACK_POINTS.length]))
     const totalLength = lengths.reduce((sum, length) => sum + length, 0)
-    expect(TRACK_POINTS).toHaveLength(160)
+    expect(TRACK_POINTS).toHaveLength(168)
     expect(totalLength).toBeGreaterThanOrEqual(520)
     expect(totalLength).toBeLessThanOrEqual(545)
     expect(Math.min(...lengths)).toBeGreaterThan(0)
@@ -73,11 +61,8 @@ describe('technical track geometry', () => {
     expect(tangentDot).toBeGreaterThan(0.98)
   })
 
-  it('does not self-intersect across the centerline or either rendered curb edge', () => {
+  it('does not self-intersect across the centerline', () => {
     expectNoSelfIntersections(TRACK_POINTS)
-    const outsideOfCurb = TRACK_WIDTH / 2 + 0.65
-    expectNoSelfIntersections(offsetTrack(outsideOfCurb))
-    expectNoSelfIntersections(offsetTrack(-outsideOfCurb))
   })
 
   it('keeps separate road sections farther apart than the rendered track width', () => {
@@ -97,8 +82,50 @@ describe('technical track geometry', () => {
       expect(nearestTrackPoint(checkpoint).distance).toBeLessThan(0.001)
       expect(Math.hypot(checkpoint.normalX, checkpoint.normalZ)).toBeCloseTo(1)
     })
-    for (const spawn of START_GRID) {
-      expect(nearestTrackPoint(spawn).distance).toBeLessThanOrEqual(legalTrackRadius())
+    const visual = createTrackMesh()
+    try {
+      const road = visual.group.children[0] as THREE.Mesh<THREE.BufferGeometry>
+      visual.group.updateMatrixWorld(true)
+      for (const spawn of START_GRID) {
+        expect(nearestTrackPoint(spawn).distance).toBeLessThanOrEqual(legalTrackRadius())
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(spawn.x, 10, spawn.z),
+          new THREE.Vector3(0, -1, 0),
+        )
+        expect(ray.intersectObject(road)).toHaveLength(1)
+      }
+    } finally {
+      visual.dispose()
+    }
+  })
+
+  it('batches bounded road and curb triangles without cross-track geometry', () => {
+    const visual = createTrackMesh()
+    try {
+      const surfaceMeshes = visual.group.children.slice(0, 3)
+      expect(surfaceMeshes).toHaveLength(3)
+      surfaceMeshes.forEach((object, meshIndex) => {
+        const position = (object as THREE.Mesh<THREE.BufferGeometry>).geometry.getAttribute('position')
+        const values = position.array
+        expect(position.count).toBe(TRACK_POINTS.length * 12)
+        let maximumEdge = 0
+        let maximumJoinEdge = 0
+        for (let offset = 0; offset < values.length; offset += 9) {
+          for (const [left, right] of [[0, 3], [3, 6], [6, 0]] as const) {
+            const edge = Math.hypot(
+              values[offset + left] - values[offset + right],
+              values[offset + left + 1] - values[offset + right + 1],
+              values[offset + left + 2] - values[offset + right + 2],
+            )
+            maximumEdge = Math.max(maximumEdge, edge)
+            if (offset % 36 >= 18) maximumJoinEdge = Math.max(maximumJoinEdge, edge)
+          }
+        }
+        expect(maximumEdge).toBeLessThan(meshIndex === 0 ? 16 : 7)
+        expect(maximumJoinEdge).toBeLessThan(meshIndex === 0 ? 8 : 7)
+      })
+    } finally {
+      visual.dispose()
     }
   })
 })

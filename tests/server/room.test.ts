@@ -4,7 +4,7 @@ import { RaceRoom } from '../../server/room.js'
 import { MAX_SOCKET_BUFFER_BYTES, sendServerMessage } from '../../server/socket.js'
 import { LocalPredictor } from '../../src/game/prediction.js'
 import type { KartSnapshot, PendingInput } from '../../src/shared/protocol.js'
-import { CHECKPOINTS } from '../../src/shared/track.js'
+import { CHECKPOINTS, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
 
 function closedSocket(): WebSocket {
   return { readyState: WebSocket.CLOSED } as WebSocket
@@ -90,6 +90,29 @@ describe('authoritative race room', () => {
     const predictor = new LocalPredictor()
     predictor.reconcile(snapshot, pending.filter((input) => input.seq > snapshot.lastProcessedSeq))
     expect(predictor.state).toEqual(player.kart)
+  })
+
+  it.each([64, 104])('resets cleanly beside technical curve sample %s', (trackIndex) => {
+    const { room } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.phase = 'racing'
+    const point = TRACK_POINTS[trackIndex]
+    const next = TRACK_POINTS[(trackIndex + 1) % TRACK_POINTS.length]
+    const length = Math.hypot(next.x - point.x, next.z - point.z)
+    const sideX = (next.z - point.z) / length
+    const sideZ = -(next.x - point.x) / length
+    player.kart.x = point.x + sideX * 12
+    player.kart.z = point.z + sideZ * 12
+    player.kart.vx = 15
+    player.kart.vz = -4
+    const expected = nearestTrackPoint(player.kart)
+
+    expect(room.reset(player.id)).toBeNull()
+    expect(player.kart.x).toBeCloseTo(expected.x)
+    expect(player.kart.z).toBeCloseTo(expected.z)
+    expect(player.kart.heading).toBeCloseTo(Math.atan2(expected.tangentX, expected.tangentZ))
+    expect(player.kart.vx).toBe(0)
+    expect(player.kart.vz).toBe(0)
   })
 
   it('counts collision-driven checkpoint and finish crossings after separation', () => {

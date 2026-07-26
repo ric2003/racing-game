@@ -19,15 +19,66 @@ export interface Checkpoint extends Point2 {
   normalZ: number
 }
 
-const POINT_COUNT = 160
+const TRACK_ANCHORS: Point2[] = [
+  { x: -52, z: -48 },
+  { x: -24, z: -48 },
+  { x: 8, z: -48 },
+  { x: 44, z: -46 },
+  { x: 68, z: -34 },
+  { x: 74, z: -12 },
+  { x: 60, z: 4 },
+  { x: 38, z: 12 },
+  { x: 20, z: 28 },
+  { x: 40, z: 46 },
+  { x: 28, z: 62 },
+  { x: 0, z: 64 },
+  { x: -20, z: 52 },
+  { x: -12, z: 34 },
+  { x: -38, z: 28 },
+  { x: -68, z: 40 },
+  { x: -84, z: 20 },
+  { x: -78, z: -4 },
+  { x: -60, z: -12 },
+  { x: -76, z: -28 },
+  { x: -72, z: -44 },
+]
 
-export const TRACK_POINTS: Point2[] = Array.from({ length: POINT_COUNT }, (_, index) => {
-  const angle = -Math.PI / 2 + (index / POINT_COUNT) * Math.PI * 2
+const SAMPLES_PER_ANCHOR = 8
+const POINT_COUNT = TRACK_ANCHORS.length * SAMPLES_PER_ANCHOR
+
+function anchor(index: number): Point2 {
+  return TRACK_ANCHORS[(index + TRACK_ANCHORS.length) % TRACK_ANCHORS.length]
+}
+
+function catmullRom(value0: number, value1: number, value2: number, value3: number, amount: number): number {
+  const squared = amount * amount
+  const cubed = squared * amount
+  return 0.5 * (
+    2 * value1
+    + (-value0 + value2) * amount
+    + (2 * value0 - 5 * value1 + 4 * value2 - value3) * squared
+    + (-value0 + 3 * value1 - 3 * value2 + value3) * cubed
+  )
+}
+
+function sampleTrack(amount: number): Point2 {
+  const scaled = amount * TRACK_ANCHORS.length
+  const index = Math.floor(scaled) % TRACK_ANCHORS.length
+  const local = scaled - Math.floor(scaled)
+  const previous = anchor(index - 1)
+  const current = anchor(index)
+  const next = anchor(index + 1)
+  const following = anchor(index + 2)
   return {
-    x: Math.cos(angle) * (90 + Math.sin(angle * 3) * 8 + Math.sin(angle * 5) * 10),
-    z: Math.sin(angle) * (65 + Math.cos(angle * 4) * 8),
+    x: catmullRom(previous.x, current.x, next.x, following.x, local),
+    z: catmullRom(previous.z, current.z, next.z, following.z, local),
   }
-})
+}
+
+export const TRACK_POINTS: Point2[] = Array.from(
+  { length: POINT_COUNT },
+  (_, index) => sampleTrack(index / POINT_COUNT),
+)
 
 const segmentLengths = TRACK_POINTS.map((point, index) => {
   const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]

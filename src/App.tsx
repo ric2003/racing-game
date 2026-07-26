@@ -133,7 +133,6 @@ function App() {
           </button>
           {network.error && <p className="form-error" role="alert">{network.error}</p>}
         </section>
-        <p className="landing-foot">DESKTOP · KEYBOARD · WEBSOCKET</p>
       </main>
     )
   }

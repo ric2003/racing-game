@@ -20,7 +20,13 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT, modifiers: StepModifiers = {}): void {
+export function stepKart(
+  kart: KartState,
+  controls: Controls,
+  dt = FIXED_DT,
+  modifiers: StepModifiers = {},
+  track: TrackDefinition = DEFAULT_TRACK,
+): void {
   const throttle = clamp(controls.throttle, -1, 1)
   const steer = clamp(controls.steer, -1, 1)
   const brake = clamp(controls.brake, 0, 1)
@@ -56,7 +62,7 @@ export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT, mod
   kart.vz = nextForwardZ * forwardSpeed + nextRightZ * lateralSpeed
   kart.x += kart.vx * dt
   kart.z += kart.vz * dt
-  constrainToTrack(kart)
+  constrainToTrack(kart, track)
 }
 
 export function constrainToTrack(kart: KartState, track: TrackDefinition = DEFAULT_TRACK): void {
@@ -66,15 +72,18 @@ export function constrainToTrack(kart: KartState, track: TrackDefinition = DEFAU
   const dx = kart.x - nearest.x
   const dz = kart.z - nearest.z
   const length = Math.max(0.0001, Math.hypot(dx, dz))
-  kart.x = nearest.x + (dx / length) * legal
-  kart.z = nearest.z + (dz / length) * legal
-  const outwardSpeed = kart.vx * (dx / length) + kart.vz * (dz / length)
+  const normalX = dx / length
+  const normalZ = dz / length
+  const inset = Math.max(0, legal - 0.015)
+  kart.x = nearest.x + normalX * inset
+  kart.z = nearest.z + normalZ * inset
+  const outwardSpeed = kart.vx * normalX + kart.vz * normalZ
   if (outwardSpeed > 0) {
-    kart.vx -= (dx / length) * outwardSpeed * 1.35
-    kart.vz -= (dz / length) * outwardSpeed * 1.35
+    // Keep the speed parallel to the curb. A shallow scrape should slide,
+    // while a head-on hit still loses the velocity aimed off the road.
+    kart.vx -= normalX * outwardSpeed
+    kart.vz -= normalZ * outwardSpeed
   }
-  kart.vx *= 0.72
-  kart.vz *= 0.72
 }
 
 const MAX_COLLISION_ITERATIONS = 80

@@ -1,9 +1,11 @@
 import * as THREE from 'three'
+import type { HazardSnapshot, ItemBoxSnapshot, OilSlickSnapshot } from '../shared/protocol.js'
 import { DEFAULT_TRACK, nearestTrackPoint, type TrackDefinition } from '../shared/track.js'
 import { TRACK_WIDTH } from '../shared/constants.js'
 
 export interface TrackVisual {
   group: THREE.Group
+  update: (elapsedSeconds: number, serverTime: number, itemBoxes?: ItemBoxSnapshot[], hazards?: HazardSnapshot[], oilSlicks?: OilSlickSnapshot[]) => void
   dispose: () => void
 }
 
@@ -63,8 +65,7 @@ function createStripGeometry(track: TrackDefinition, leftOffset: number, rightOf
   if (alternatingGroups) {
     for (let index = 0; index < track.points.length; index += 1) {
       // Keep each segment and its corner join in the same curb color.
-      // Vertices are local because a naive shared offset polyline can fold
-      // across the road at the two tight hairpins.
+      // Vertices stay local so offset joins cannot fold across the road.
       geometry.addGroup(index * 12, 12, index % 2)
     }
   }
@@ -98,35 +99,113 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   rightCurb.receiveShadow = true
   group.add(road, leftCurb, rightCurb)
 
-  const markerGeometry = new THREE.BoxGeometry(TRACK_WIDTH - 0.8, 0.03, 0.55)
-  const checkpointMaterial = new THREE.MeshStandardMaterial({ color: 0x62e6ff, emissive: 0x1b6c7b, emissiveIntensity: 0.5 })
-  const startMaterial = new THREE.MeshStandardMaterial({ color: 0xf6f1df })
-  track.checkpoints.forEach((checkpoint, index) => {
-    const marker = new THREE.Mesh(markerGeometry, index === 0 ? startMaterial : checkpointMaterial)
-    marker.position.set(checkpoint.x, 0.15, checkpoint.z)
-    marker.rotation.y = Math.atan2(checkpoint.normalX, checkpoint.normalZ)
-    group.add(marker)
+  const startLine = new THREE.Group()
+  startLine.name = 'start-line'
+  const start = track.checkpoints[0]
+  const startColumns = 12
+  const startRows = 2
+  const startWidth = TRACK_WIDTH - 1
+  const tileWidth = startWidth / startColumns
+  const tileLength = 0.48
+  const startTileGeometry = new THREE.BoxGeometry(tileWidth - 0.025, 0.035, tileLength - 0.025)
+  const startMaterials = [
+    new THREE.MeshStandardMaterial({ color: 0xf7f3e8, roughness: 0.72 }),
+    new THREE.MeshStandardMaterial({ color: 0x242535, roughness: 0.82 }),
+  ]
+  for (let row = 0; row < startRows; row += 1) {
+    for (let column = 0; column < startColumns; column += 1) {
+      const tile = new THREE.Mesh(startTileGeometry, startMaterials[(row + column) % 2])
+      tile.position.set(-startWidth / 2 + tileWidth * (column + 0.5), 0, (row - 0.5) * tileLength)
+      tile.receiveShadow = true
+      startLine.add(tile)
+    }
+  }
+  startLine.position.set(start.x, 0.145, start.z)
+  startLine.rotation.y = Math.atan2(start.normalX, start.normalZ)
+  group.add(startLine)
+
+  const itemShellGeometry = new THREE.BoxGeometry(1.3, 1.3, 1.3)
+  const itemCoreGeometry = new THREE.OctahedronGeometry(0.44, 0)
+  const itemRingGeometry = new THREE.TorusGeometry(0.9, 0.065, 6, 24)
+  const itemShellMaterial = new THREE.MeshStandardMaterial({
+    color: 0x56d9f3,
+    emissive: 0x1b6c7b,
+    emissiveIntensity: 1.15,
+    transparent: true,
+    opacity: 0.58,
+    roughness: 0.24,
+    metalness: 0.22,
+    wireframe: true,
+  })
+  const itemCoreMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f3e8, emissive: 0x56d9f3, emissiveIntensity: 1.5, roughness: 0.3 })
+  const itemRingMaterial = new THREE.MeshBasicMaterial({ color: 0x56d9f3, transparent: true, opacity: 0.72 })
+  const itemVisuals = track.itemBoxes.map((point, index) => {
+    const visual = new THREE.Group()
+    visual.name = `item-box-${index}`
+    visual.position.set(point.x, 1.25, point.z)
+    const shell = new THREE.Mesh(itemShellGeometry, itemShellMaterial)
+    const core = new THREE.Mesh(itemCoreGeometry, itemCoreMaterial)
+    const ring = new THREE.Mesh(itemRingGeometry, itemRingMaterial)
+    ring.position.y = -0.76
+    ring.rotation.x = Math.PI / 2
+    shell.castShadow = true
+    core.castShadow = true
+    visual.add(shell, core, ring)
+    group.add(visual)
+    return visual
   })
 
-  const itemGeometry = new THREE.OctahedronGeometry(0.7, 1)
-  const itemMaterial = new THREE.MeshStandardMaterial({ color: 0x56d9f3, emissive: 0x1b6c7b, emissiveIntensity: 1.2, roughness: 0.35, metalness: 0.2 })
-  for (const point of track.itemBoxes) {
-    const item = new THREE.Mesh(itemGeometry, itemMaterial)
-    item.position.set(point.x, 0.85, point.z)
-    item.castShadow = true
-    group.add(item)
-  }
-  const padGeometry = new THREE.BoxGeometry(5.2, 0.08, 2.2)
-  const padMaterial = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x8b5d09, emissiveIntensity: 0.8 })
-  const barrierGeometry = new THREE.BoxGeometry(4.5, 1.4, 0.55)
-  const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xff4f70, emissive: 0x7b142b, emissiveIntensity: 0.6 })
+  const padGeometry = new THREE.BoxGeometry(5.2, 0.08, 2.25)
+  const padStripeGeometry = new THREE.BoxGeometry(4.25, 0.025, 0.16)
+  const padMaterial = new THREE.MeshStandardMaterial({ color: 0xffc857, emissive: 0x8b5d09, emissiveIntensity: 0.85, roughness: 0.52 })
+  const padStripeMaterial = new THREE.MeshBasicMaterial({ color: 0xf7f3e8 })
+  const barrierGeometry = new THREE.BoxGeometry(4.2, 0.58, 0.46)
+  const barrierPostGeometry = new THREE.BoxGeometry(0.22, 1.05, 0.22)
+  const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xff4f70, emissive: 0x7b142b, emissiveIntensity: 0.62, roughness: 0.45 })
+  const barrierStripeMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f3e8, emissive: 0x6d5f4c, emissiveIntensity: 0.25, roughness: 0.58 })
+  const hazardVisuals = new Map<string, THREE.Group>()
   for (const hazard of track.hazards) {
-    const visual = new THREE.Mesh(hazard.type === 'boost-pad' ? padGeometry : barrierGeometry, hazard.type === 'boost-pad' ? padMaterial : barrierMaterial)
-    visual.position.set(hazard.x, hazard.type === 'boost-pad' ? 0.12 : 0.8, hazard.z)
-    visual.rotation.y = hazard.phase ? hazard.phase * Math.PI * 2 : 0
-    visual.castShadow = true
+    const visual = new THREE.Group()
+    visual.name = `hazard-${hazard.id}`
+    visual.position.set(hazard.x, 0.12, hazard.z)
+    const projection = nearestTrackPoint(hazard, track)
+    visual.rotation.y = Math.atan2(projection.tangentX, projection.tangentZ)
+    if (hazard.type === 'boost-pad') {
+      const base = new THREE.Mesh(padGeometry, padMaterial)
+      base.receiveShadow = true
+      visual.add(base)
+      for (const z of [-0.65, 0, 0.65]) {
+        const stripe = new THREE.Mesh(padStripeGeometry, padStripeMaterial)
+        stripe.position.set(0, 0.052, z)
+        visual.add(stripe)
+      }
+    } else {
+      const bar = new THREE.Mesh(barrierGeometry, barrierMaterial)
+      bar.position.y = 0.92
+      bar.castShadow = true
+      visual.add(bar)
+      for (const x of [-1.55, 0, 1.55]) {
+        const stripe = new THREE.Mesh(barrierPostGeometry, barrierStripeMaterial)
+        stripe.position.set(x, 0.92, 0.245)
+        stripe.rotation.z = Math.PI / 4
+        visual.add(stripe)
+      }
+      for (const x of [-1.9, 1.9]) {
+        const post = new THREE.Mesh(barrierPostGeometry, barrierMaterial)
+        post.position.set(x, 0.53, 0)
+        post.castShadow = true
+        visual.add(post)
+      }
+    }
+    hazardVisuals.set(hazard.id, visual)
     group.add(visual)
   }
+
+  const oilGeometry = new THREE.CylinderGeometry(1.5, 1.65, 0.07, 24)
+  const oilRingGeometry = new THREE.TorusGeometry(1.35, 0.08, 6, 28)
+  const oilMaterial = new THREE.MeshStandardMaterial({ color: 0x121019, emissive: 0x37194f, emissiveIntensity: 0.55, roughness: 0.28, metalness: 0.2 })
+  const oilRingMaterial = new THREE.MeshBasicMaterial({ color: 0xc05cff, transparent: true, opacity: 0.9 })
+  const oilVisuals = new Map<number, THREE.Group>()
 
   const trunkGeometry = new THREE.CylinderGeometry(0.28, 0.38, 2.2, 6)
   const crownGeometry = new THREE.ConeGeometry(1.35, 3.4, 7)
@@ -163,30 +242,84 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   stand.position.set(8, 2, -64)
   stand.castShadow = true
   group.add(stand)
+  const itemState = new Map<number, ItemBoxSnapshot>()
+  const hazardState = new Map<string, HazardSnapshot>()
+  const activeSlicks = new Set<number>()
 
   return {
     group,
+    update: (elapsedSeconds, serverTime, itemBoxes, hazards, oilSlicks) => {
+      itemState.clear()
+      for (const item of itemBoxes ?? []) itemState.set(item.id, item)
+      itemVisuals.forEach((visual, index) => {
+        const state = itemState.get(index)
+        visual.visible = state === undefined || state.availableAt <= serverTime
+        visual.position.y = 1.25 + Math.sin(elapsedSeconds * 2.2 + index * 0.8) * 0.18
+        visual.rotation.y = elapsedSeconds * 1.25 + index * 0.7
+        visual.children[1].rotation.x = elapsedSeconds * 1.8
+      })
+      hazardState.clear()
+      for (const hazard of hazards ?? []) hazardState.set(hazard.id, hazard)
+      for (const [id, visual] of hazardVisuals) visual.visible = hazardState.get(id)?.active ?? true
+
+      activeSlicks.clear()
+      for (const slick of oilSlicks ?? []) activeSlicks.add(slick.id)
+      for (const [id, visual] of oilVisuals) {
+        if (activeSlicks.has(id)) continue
+        group.remove(visual)
+        oilVisuals.delete(id)
+      }
+      for (const slick of oilSlicks ?? []) {
+        let visual = oilVisuals.get(slick.id)
+        if (!visual) {
+          visual = new THREE.Group()
+          visual.name = `oil-slick-${slick.id}`
+          const puddle = new THREE.Mesh(oilGeometry, oilMaterial)
+          puddle.receiveShadow = true
+          const warningRing = new THREE.Mesh(oilRingGeometry, oilRingMaterial)
+          warningRing.position.y = 0.055
+          warningRing.rotation.x = Math.PI / 2
+          visual.add(puddle, warningRing)
+          oilVisuals.set(slick.id, visual)
+          group.add(visual)
+        }
+        visual.position.set(slick.x, 0.075, slick.z)
+        const pulse = 1 + Math.sin(elapsedSeconds * 6 + slick.id) * 0.035
+        visual.scale.setScalar(pulse)
+      }
+    },
     dispose: () => {
       roadGeometry.dispose()
       roadMaterial.dispose()
       leftCurbGeometry.dispose()
       rightCurbGeometry.dispose()
       edgeMaterials.forEach((material) => material.dispose())
-      markerGeometry.dispose()
-      checkpointMaterial.dispose()
-      startMaterial.dispose()
+      startTileGeometry.dispose()
+      startMaterials.forEach((material) => material.dispose())
       trunkGeometry.dispose()
       crownGeometry.dispose()
       trunkMaterial.dispose()
       crownMaterial.dispose()
       standMaterial.dispose()
       standGeometry.dispose()
-      itemGeometry.dispose()
-      itemMaterial.dispose()
+      itemShellGeometry.dispose()
+      itemCoreGeometry.dispose()
+      itemRingGeometry.dispose()
+      itemShellMaterial.dispose()
+      itemCoreMaterial.dispose()
+      itemRingMaterial.dispose()
       padGeometry.dispose()
+      padStripeGeometry.dispose()
       padMaterial.dispose()
+      padStripeMaterial.dispose()
       barrierGeometry.dispose()
+      barrierPostGeometry.dispose()
       barrierMaterial.dispose()
+      barrierStripeMaterial.dispose()
+      oilGeometry.dispose()
+      oilRingGeometry.dispose()
+      oilMaterial.dispose()
+      oilRingMaterial.dispose()
     },
   }
 }

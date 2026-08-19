@@ -5,7 +5,14 @@ import { Minimap } from './game/Minimap.js'
 import { DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
 import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
-import type { ItemType, RaceSettings } from './shared/protocol.js'
+import type { ItemType, KartSnapshot, RaceEvent, RaceSettings } from './shared/protocol.js'
+
+const ITEM_INFO: Record<ItemType, { label: string; cue: string; symbol: string }> = {
+  turbo: { label: 'TURBO', cue: 'Speed burst', symbol: '»' },
+  shield: { label: 'SHIELD', cue: 'Blocks one hit', symbol: '◇' },
+  'pulse-bolt': { label: 'PULSE BOLT', cue: 'Hits the racer ahead', symbol: '➤' },
+  'oil-slick': { label: 'OIL SLICK', cue: 'Drops behind you', symbol: '●' },
+}
 
 const NAME_PATTERN = /^[A-Za-z0-9 _-]{2,16}$/
 
@@ -92,6 +99,11 @@ function App() {
   const phase = network.snapshot?.phase ?? network.lobby?.phase ?? 'lobby'
   const settings = network.snapshot?.settings ?? network.lobby?.settings ?? DEFAULT_RACE_SETTINGS
   const localKart = network.snapshot?.karts.find((kart) => kart.id === network.playerId)
+  const heldItem = localKart?.heldItem ?? null
+  const heldItemInfo = heldItem ? ITEM_INFO[heldItem] : null
+  const itemNotice = network.snapshot && network.playerId
+    ? latestItemNotice(network.snapshot.events ?? [], network.snapshot.karts, network.playerId, network.snapshot.serverTime)
+    : null
   const isHost = network.playerId !== null && network.lobby?.hostId === network.playerId
   const hasEnoughRacers = (network.lobby?.players.length ?? 0) >= 2
   const canStart = isHost && hasEnoughRacers
@@ -131,7 +143,7 @@ function App() {
               aria-invalid={nameError ? true : undefined}
               minLength={2}
               maxLength={16}
-              pattern="[A-Za-z0-9 _-]{2,16}"
+              pattern="[A-Za-z0-9 _\-]{2,16}"
               placeholder="TurboFox"
               autoComplete="nickname"
               required
@@ -268,7 +280,12 @@ function App() {
             <div><span>LAP</span><strong>{Math.min(localKart.lap + 1, settings.laps)}<small>/{settings.laps}</small></strong></div>
             <div><span>POSITION</span><strong>{(network.snapshot.standings.findIndex((standing) => standing.id === network.playerId) ?? -1) + 1}<small>/{network.snapshot.standings.length}</small></strong></div>
             <div><span>TIME</span><strong className="hud-time">{formatTime(network.snapshot.standings.find((standing) => standing.id === network.playerId)?.lapTime ?? null)}</strong></div>
-            <div className="item-slot"><span>ITEM</span><strong>{localKart.heldItem ? itemLabel(localKart.heldItem) : '—'}</strong><small>PRESS <kbd>E</kbd></small></div>
+            <div className={`item-slot ${heldItem ? `has-item item-${heldItem}` : ''}`}>
+              <span>{heldItem ? 'ITEM READY' : 'ITEM'}</span>
+              <strong>{heldItemInfo ? <><i aria-hidden="true">{heldItemInfo.symbol}</i>{heldItemInfo.label}</> : '—'}</strong>
+              <small className="item-cue">{heldItemInfo?.cue ?? 'Drive through a blue box'}</small>
+              <small className="item-key">PRESS <kbd>E</kbd> TO USE</small>
+            </div>
           </section>
           <aside className="standings glass-panel" aria-label="Live standings">
             <span>STANDINGS</span>
@@ -301,6 +318,7 @@ function App() {
       )}
 
       {network.error && <div className="network-error" role="alert">{network.error}</div>}
+      {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
       <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> ITEM</span><span><kbd>R</kbd> RESET</span></footer>
@@ -313,8 +331,23 @@ function formatTime(milliseconds: number | null): string {
   return `${(milliseconds / 1_000).toFixed(2)}s`
 }
 
-function itemLabel(item: ItemType): string {
-  return item === 'pulse-bolt' ? 'BOLT' : item === 'oil-slick' ? 'OIL' : item.toUpperCase()
+function latestItemNotice(events: RaceEvent[], karts: KartSnapshot[], playerId: string, serverTime: number): string | null {
+  const event = [...events].reverse().find((candidate) => {
+    const concernsPlayer = candidate.playerId === playerId || candidate.targetId === playerId
+    const isItemEvent = candidate.kind === 'item-pickup' || candidate.kind === 'item-used' || candidate.kind === 'item-hit' || candidate.kind === 'spin'
+    return concernsPlayer && isItemEvent && serverTime - candidate.at < 1_700
+  })
+  if (!event) return null
+  const item = event.item ? ITEM_INFO[event.item] : null
+  if (event.kind === 'item-pickup' && event.playerId === playerId) return `PICKED UP ${item?.label ?? 'ITEM'} · ${item?.cue ?? 'PRESS E TO USE'}`
+  if (event.kind === 'item-used' && event.playerId === playerId) return `${item?.label ?? 'ITEM'} USED`
+  if (event.kind === 'item-hit' && event.targetId === playerId) return `SHIELD BLOCKED ${item?.label ?? 'A HIT'}`
+  if (event.kind === 'spin' && event.targetId === playerId) return `HIT BY ${item?.label ?? 'HAZARD'}`
+  if (event.kind === 'spin' && event.playerId === playerId && event.targetId) {
+    const target = karts.find((kart) => kart.id === event.targetId)
+    return `${item?.label ?? 'ITEM'} HIT ${target?.name ?? 'RACER'}`
+  }
+  return null
 }
 
 function reactionLabel(reaction: 'nice' | 'oops' | 'rematch'): string {

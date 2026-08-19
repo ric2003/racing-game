@@ -1,4 +1,5 @@
 import type { Controls } from '../shared/protocol.js'
+import { controlsFromPressed, keyboardTokens } from './keyboard.js'
 
 export type BindingAction = 'accelerate' | 'reverse' | 'left' | 'right' | 'brake' | 'item' | 'reset'
 
@@ -23,6 +24,10 @@ export const DEFAULT_KEY_BINDINGS: KeyBindings = {
 }
 
 const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+const DRIVING_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', ...ARROW_KEYS])
+const DRIVING_KEY_VALUES = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
+const DRIVING_KEY_CODES = new Set([38, 40, 37, 39, 65, 68, 83, 87])
+const KEY_BINDINGS_EVENT = 'neon-apex-key-bindings-changed'
 
 export function loadKeyBindings(): KeyBindings {
   try {
@@ -35,6 +40,7 @@ export function loadKeyBindings(): KeyBindings {
 
 export function saveKeyBindings(bindings: KeyBindings): void {
   localStorage.setItem('neon-apex-key-bindings', JSON.stringify(bindings))
+  window.dispatchEvent(new Event(KEY_BINDINGS_EVENT))
 }
 
 export interface InputController {
@@ -45,31 +51,36 @@ export interface InputController {
 
 export function createInputController(element: HTMLElement, onReset: () => void): InputController {
   const pressed = new Set<string>()
+  let bindings = loadKeyBindings()
   let itemQueued = false
   let gamepadItemPressed = false
+  const refreshBindings = () => { bindings = loadKeyBindings() }
   const onKeyDown = (event: KeyboardEvent) => {
-    if (document.activeElement !== element) return
-    const bindings = loadKeyBindings()
-    if (ARROW_KEYS.has(event.code) || Object.values(bindings).includes(event.code)) event.preventDefault()
+    if (isTypingTarget(event.target)) return
+    const keyValue = event.key.toLowerCase()
+    if (DRIVING_KEYS.has(event.code) || DRIVING_KEY_VALUES.has(keyValue) || DRIVING_KEY_CODES.has(event.keyCode) || Object.values(bindings).includes(event.code)) event.preventDefault()
+    element.focus({ preventScroll: true })
     if (event.code === bindings.reset && !event.repeat) onReset()
     if (event.code === bindings.item && !event.repeat) itemQueued = true
-    pressed.add(event.code)
+    for (const token of keyboardTokens(event)) pressed.add(token)
   }
-  const onKeyUp = (event: KeyboardEvent) => pressed.delete(event.code)
+  const onKeyUp = (event: KeyboardEvent) => {
+    for (const token of keyboardTokens(event)) pressed.delete(token)
+  }
   const onBlur = () => {
     pressed.clear()
     itemQueued = false
     gamepadItemPressed = false
   }
-  window.addEventListener('keydown', onKeyDown)
-  window.addEventListener('keyup', onKeyUp)
+  const onPointerDown = () => element.focus()
+  window.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('keyup', onKeyUp, true)
   window.addEventListener('blur', onBlur)
+  window.addEventListener('storage', refreshBindings)
+  window.addEventListener(KEY_BINDINGS_EVENT, refreshBindings)
+  element.addEventListener('pointerdown', onPointerDown)
   return {
-    read: () => ({
-      throttle: Math.max(-1, Math.min(1, (pressed.has(loadKeyBindings().accelerate) || pressed.has('ArrowUp') ? 1 : 0) - (pressed.has(loadKeyBindings().reverse) || pressed.has('ArrowDown') ? 1 : 0) + gamepadAxis(1))),
-      steer: Math.max(-1, Math.min(1, (pressed.has(loadKeyBindings().left) || pressed.has('ArrowLeft') ? 1 : 0) - (pressed.has(loadKeyBindings().right) || pressed.has('ArrowRight') ? 1 : 0) + gamepadAxis(0))),
-      brake: pressed.has(loadKeyBindings().brake) || gamepadButton(0) ? 1 : 0,
-    }),
+    read: () => controlsFromPressed(pressed, bindings, gamepadAxis(0), gamepadAxis(1), gamepadButton(0)),
     consumeItem: () => {
       const currentGamepadItem = gamepadButton(2)
       const queued = itemQueued || (currentGamepadItem && !gamepadItemPressed)
@@ -78,18 +89,26 @@ export function createInputController(element: HTMLElement, onReset: () => void)
       return queued
     },
     dispose: () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('blur', onBlur)
+      window.removeEventListener('storage', refreshBindings)
+      window.removeEventListener(KEY_BINDINGS_EVENT, refreshBindings)
+      element.removeEventListener('pointerdown', onPointerDown)
     },
   }
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || target.matches('input, textarea, select')
 }
 
 function gamepadAxis(index: number): number {
   const gamepad = navigator.getGamepads?.()[0]
   if (!gamepad) return 0
   const value = gamepad.axes[index] ?? 0
-  return Math.abs(value) < 0.18 ? 0 : -value
+  return Math.abs(value) < 0.18 ? 0 : value
 }
 
 function gamepadButton(index: number): boolean {

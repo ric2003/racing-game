@@ -41,14 +41,26 @@ function expectNoSelfIntersections(points: Point2[]): void {
 }
 
 describe('technical track geometry', () => {
-  it('is a smooth closed circuit around twice the previous lap length', () => {
+  it('is a smooth, flowing closed circuit', () => {
     const lengths = TRACK_POINTS.map((point, index) => distance(point, TRACK_POINTS[(index + 1) % TRACK_POINTS.length]))
     const totalLength = lengths.reduce((sum, length) => sum + length, 0)
-    expect(TRACK_POINTS).toHaveLength(168)
-    expect(totalLength).toBeGreaterThanOrEqual(520)
-    expect(totalLength).toBeLessThanOrEqual(545)
+    expect(TRACK_POINTS).toHaveLength(150)
+    expect(totalLength).toBeGreaterThanOrEqual(440)
+    expect(totalLength).toBeLessThanOrEqual(460)
     expect(Math.min(...lengths)).toBeGreaterThan(0)
-    expect(Math.max(...lengths)).toBeLessThan(6)
+    expect(Math.max(...lengths)).toBeLessThan(4)
+
+    const tangentDots = TRACK_POINTS.map((point, index) => {
+      const previous = TRACK_POINTS[(index - 1 + TRACK_POINTS.length) % TRACK_POINTS.length]
+      const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
+      const incomingLength = distance(previous, point)
+      const outgoingLength = distance(point, next)
+      return (
+        ((point.x - previous.x) / incomingLength) * ((next.x - point.x) / outgoingLength)
+        + ((point.z - previous.z) / incomingLength) * ((next.z - point.z) / outgoingLength)
+      )
+    })
+    expect(Math.min(...tangentDots)).toBeGreaterThan(0.995)
 
     const previous = TRACK_POINTS.at(-1)!
     const current = TRACK_POINTS[0]
@@ -122,8 +134,8 @@ describe('technical track geometry', () => {
             if (offset % 36 >= 18) maximumJoinEdge = Math.max(maximumJoinEdge, edge)
           }
         }
-        expect(maximumEdge).toBeLessThan(meshIndex === 0 ? 16 : 7)
-        expect(maximumJoinEdge).toBeLessThan(meshIndex === 0 ? 8 : 7)
+        expect(maximumEdge).toBeLessThan(meshIndex === 0 ? TRACK_WIDTH + 1 : 7)
+        expect(maximumJoinEdge).toBeLessThan(meshIndex === 0 ? TRACK_WIDTH / 2 + 1 : 7)
       })
     } finally {
       visual.dispose()
@@ -133,14 +145,16 @@ describe('technical track geometry', () => {
   it('exposes three versioned circuits with valid starts, checkpoints, item boxes, and hazards', () => {
     expect(TRACKS.map((track) => track.id)).toEqual(['neon-classic', 'neon-harbor', 'skyway-switchbacks'])
     for (const track of TRACKS) {
-      expect(track.version).toBe(1)
-      expect(track.points).toHaveLength(168)
+      expect(track.version).toBe(2)
+      expect(track.points).toHaveLength(150)
       expect(track.checkpoints).toHaveLength(8)
       expect(track.startGrid).toHaveLength(4)
       expect(track.itemBoxes).toHaveLength(8)
       expect(track.hazards.length).toBeGreaterThan(0)
       expectNoSelfIntersections(track.points)
       for (const spawn of track.startGrid) expect(nearestTrackPoint(spawn, track).distance).toBeLessThanOrEqual(legalTrackRadius() + 0.001)
+      for (const item of track.itemBoxes) expect(nearestTrackPoint(item, track).distance).toBeLessThanOrEqual(legalTrackRadius())
+      for (const hazard of track.hazards) expect(nearestTrackPoint(hazard, track).distance).toBeLessThanOrEqual(legalTrackRadius())
     }
   })
 })

@@ -43,30 +43,24 @@ export interface TrackDefinition {
 }
 
 const TRACK_ANCHORS: Point2[] = [
-  { x: -52, z: -48 },
-  { x: -24, z: -48 },
-  { x: 8, z: -48 },
-  { x: 44, z: -46 },
-  { x: 68, z: -34 },
-  { x: 74, z: -12 },
-  { x: 60, z: 4 },
-  { x: 38, z: 12 },
-  { x: 20, z: 28 },
-  { x: 40, z: 46 },
-  { x: 28, z: 62 },
-  { x: 0, z: 64 },
-  { x: -20, z: 52 },
-  { x: -12, z: 34 },
-  { x: -38, z: 28 },
+  { x: -20, z: -50 },
+  { x: 18, z: -50 },
+  { x: 52, z: -44 },
+  { x: 72, z: -28 },
+  { x: 80, z: -4 },
+  { x: 72, z: 22 },
+  { x: 54, z: 45 },
+  { x: 24, z: 60 },
+  { x: -10, z: 64 },
+  { x: -42, z: 56 },
   { x: -68, z: 40 },
-  { x: -84, z: 20 },
-  { x: -78, z: -4 },
-  { x: -60, z: -12 },
-  { x: -76, z: -28 },
-  { x: -72, z: -44 },
+  { x: -82, z: 18 },
+  { x: -82, z: -10 },
+  { x: -72, z: -34 },
+  { x: -52, z: -48 },
 ]
 
-const SAMPLES_PER_ANCHOR = 8
+const SAMPLES_PER_ANCHOR = 10
 const POINT_COUNT = TRACK_ANCHORS.length * SAMPLES_PER_ANCHOR
 const CHECKPOINT_COUNT = 8
 
@@ -106,7 +100,7 @@ const CLASSIC_POINTS: Point2[] = Array.from(
 
 function buildCheckpoints(points: Point2[]): Checkpoint[] {
   return Array.from({ length: CHECKPOINT_COUNT }, (_, index) => {
-    const trackIndex = index * (points.length / CHECKPOINT_COUNT)
+    const trackIndex = Math.floor(index * points.length / CHECKPOINT_COUNT)
     const point = points[trackIndex]
     const next = points[(trackIndex + 1) % points.length]
     const length = Math.max(0.0001, Math.hypot(next.x - point.x, next.z - point.z))
@@ -135,15 +129,35 @@ function buildStartGrid(checkpoints: Checkpoint[]): StartPosition[] {
   })
 }
 
-function buildTrack(id: string, name: string, points: Point2[], hazards: HazardDefinition[] = []): TrackDefinition {
+interface HazardPlacement extends Omit<HazardDefinition, 'x' | 'z'> {
+  progress: number
+  lateralOffset?: number
+}
+
+function pointAtProgress(points: Point2[], progress: number, lateralOffset = 0): Point2 {
+  const index = Math.floor(progress * points.length) % points.length
+  const point = points[index]
+  const next = points[(index + 1) % points.length]
+  const dx = next.x - point.x
+  const dz = next.z - point.z
+  const length = Math.max(0.0001, Math.hypot(dx, dz))
+  return {
+    x: point.x + (dz / length) * lateralOffset,
+    z: point.z - (dx / length) * lateralOffset,
+  }
+}
+
+function buildTrack(id: string, name: string, points: Point2[], hazardPlacements: HazardPlacement[] = []): TrackDefinition {
   const checkpoints = buildCheckpoints(points)
-  const itemBoxes = [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94].map((progress) => {
-    const index = Math.floor(progress * points.length) % points.length
-    return { ...points[index] }
-  })
+  const itemBoxes = [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94]
+    .map((progress, index) => pointAtProgress(points, progress, index % 2 === 0 ? -3.1 : 3.1))
+  const hazards = hazardPlacements.map(({ progress, lateralOffset = 0, ...hazard }) => ({
+    ...hazard,
+    ...pointAtProgress(points, progress, lateralOffset),
+  }))
   return {
     id,
-    version: 1,
+    version: 2,
     name,
     points,
     checkpoints,
@@ -153,10 +167,10 @@ function buildTrack(id: string, name: string, points: Point2[], hazards: HazardD
   }
 }
 
-const classicHazards: HazardDefinition[] = [
-  { id: 'classic-boost-1', type: 'boost-pad', x: 26, z: -48, radius: 2.6 },
-  { id: 'classic-boost-2', type: 'boost-pad', x: -48, z: 34, radius: 2.6 },
-  { id: 'classic-barrier', type: 'moving-barrier', x: 49, z: 6, radius: 2.1, periodMs: 3_600 },
+const classicHazards: HazardPlacement[] = [
+  { id: 'classic-boost-1', type: 'boost-pad', progress: 0.13, radius: 2.6 },
+  { id: 'classic-boost-2', type: 'boost-pad', progress: 0.66, radius: 2.6 },
+  { id: 'classic-barrier', type: 'moving-barrier', progress: 0.34, lateralOffset: 2.8, radius: 1.9, periodMs: 3_600 },
 ]
 
 const CLASSIC_TRACK = buildTrack('neon-classic', 'Neon Classic', CLASSIC_POINTS, classicHazards)
@@ -166,12 +180,12 @@ const SWITCHBACK_POINTS = CLASSIC_POINTS.map(({ x, z }) => ({ x: z * 0.9 - 3, z:
 export const TRACKS: TrackDefinition[] = [
   CLASSIC_TRACK,
   buildTrack('neon-harbor', 'Neon Harbor', HARBOR_POINTS, [
-    { id: 'harbor-boost-1', type: 'boost-pad', x: 35, z: -47, radius: 2.6 },
-    { id: 'harbor-barrier', type: 'moving-barrier', x: 53, z: 4, radius: 2.2, periodMs: 3_200, phase: 0.5 },
+    { id: 'harbor-boost-1', type: 'boost-pad', progress: 0.17, radius: 2.6 },
+    { id: 'harbor-barrier', type: 'moving-barrier', progress: 0.48, lateralOffset: -2.8, radius: 1.9, periodMs: 3_200, phase: 0.5 },
   ]),
   buildTrack('skyway-switchbacks', 'Skyway Switchbacks', SWITCHBACK_POINTS, [
-    { id: 'skyway-boost-1', type: 'boost-pad', x: -38, z: 42, radius: 2.6 },
-    { id: 'skyway-barrier', type: 'moving-barrier', x: 42, z: 20, radius: 2.1, periodMs: 4_100, phase: 0.25 },
+    { id: 'skyway-boost-1', type: 'boost-pad', progress: 0.72, radius: 2.6 },
+    { id: 'skyway-barrier', type: 'moving-barrier', progress: 0.27, lateralOffset: 2.8, radius: 1.9, periodMs: 4_100, phase: 0.25 },
   ]),
 ]
 

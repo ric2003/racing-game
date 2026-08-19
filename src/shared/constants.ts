@@ -1,6 +1,7 @@
 export const FIXED_DT = 1 / 60
 export const SNAPSHOT_EVERY_TICKS = 3
 export const INPUT_INTERVAL = 1 / 30
+export const INPUT_STEPS_PER_SAMPLE = 2
 export const INTERPOLATION_DELAY_MS = 100
 export const MAX_CATCH_UP_STEPS = 5
 export const MAX_PLAYERS = 4
@@ -21,7 +22,7 @@ export const BOOST_DURATION_MS = 900
 export const SHIELD_DURATION_MS = 8_000
 export const MAX_EVENTS_PER_SNAPSHOT = 32
 export const KART_RADIUS = 1.15
-export const TRACK_WIDTH = 15
+export const TRACK_WIDTH = 17
 export const MAX_MESSAGE_BYTES = 1_024
 export const INPUT_IDLE_MS = 250
 

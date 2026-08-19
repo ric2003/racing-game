@@ -72,6 +72,13 @@ export interface HazardSnapshot {
   active: boolean
 }
 
+export interface OilSlickSnapshot {
+  id: number
+  x: number
+  z: number
+  expiresAt: number
+}
+
 export interface RaceEvent {
   id: number
   kind: 'item-pickup' | 'item-used' | 'item-hit' | 'boost' | 'spin' | 'eliminated' | 'overtake'
@@ -95,8 +102,11 @@ export interface KartSnapshot {
   finishedAt: number | null
   finishPlace: number | null
   lastProcessedSeq: number
+  processingInputSeq?: number | null
+  processingInputStepsRemaining?: number
   heldItem?: ItemType | null
   item?: ItemState
+  boostedUntil?: number | null
   shieldedUntil?: number | null
   immuneUntil?: number | null
   disabledUntil?: number | null
@@ -141,6 +151,7 @@ export type ServerMessage =
       settings?: RaceSettings
       itemBoxes?: ItemBoxSnapshot[]
       hazards?: HazardSnapshot[]
+      oilSlicks?: OilSlickSnapshot[]
       events?: RaceEvent[]
       resumeExpiresAt?: number | null
     }

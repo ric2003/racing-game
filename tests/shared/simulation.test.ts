@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FIXED_DT, HANDLING, KART_RADIUS } from '../../src/shared/constants.js'
-import { resolveKartCollisions, stepKart, type KartState } from '../../src/shared/simulation.js'
+import { constrainToTrack, resolveKartCollisions, stepKart, type KartState } from '../../src/shared/simulation.js'
 import { legalTrackRadius, nearestTrackPoint, START_GRID } from '../../src/shared/track.js'
 
 function kart(id = 'a'): KartState {
@@ -50,6 +50,27 @@ describe('arcade simulation', () => {
     state.vz = 10
     stepKart(state, neutral, FIXED_DT)
     expect(nearestTrackPoint(state).distance).toBeLessThanOrEqual(legalTrackRadius() + 0.001)
+  })
+
+  it('slides through a shallow curb scrape without killing forward speed', () => {
+    const projection = nearestTrackPoint(START_GRID[0])
+    const normalX = projection.tangentZ
+    const normalZ = -projection.tangentX
+    const state = {
+      ...kart(),
+      x: projection.x + normalX * (legalTrackRadius() + 0.2),
+      z: projection.z + normalZ * (legalTrackRadius() + 0.2),
+      vx: projection.tangentX * 20 + normalX * 0.75,
+      vz: projection.tangentZ * 20 + normalZ * 0.75,
+    }
+
+    constrainToTrack(state)
+
+    const tangentialSpeed = state.vx * projection.tangentX + state.vz * projection.tangentZ
+    const outwardSpeed = state.vx * normalX + state.vz * normalZ
+    expect(tangentialSpeed).toBeGreaterThan(19.9)
+    expect(outwardSpeed).toBeLessThanOrEqual(0.001)
+    expect(nearestTrackPoint(state).distance).toBeLessThanOrEqual(legalTrackRadius())
   })
 
   it('separates overlapping karts deterministically', () => {

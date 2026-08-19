@@ -1,4 +1,4 @@
-export type RaceSound = 'countdown' | 'go' | 'pickup' | 'boost' | 'hit' | 'spin' | 'finish'
+export type RaceSound = 'countdown' | 'go' | 'pickup' | 'use' | 'boost' | 'hit' | 'spin' | 'finish'
 
 /** Small, asset-free sound layer. It stays silent until the player interacts with the canvas. */
 export class RaceAudio {
@@ -23,6 +23,7 @@ export class RaceAudio {
       countdown: [220, 0.08],
       go: [660, 0.18],
       pickup: [520, 0.1],
+      use: [700, 0.12],
       boost: [880, 0.16],
       hit: [120, 0.18],
       spin: [160, 0.24],

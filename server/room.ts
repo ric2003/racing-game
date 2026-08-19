@@ -6,6 +6,7 @@ import {
   DEFAULT_RACE_SETTINGS,
   FIXED_DT,
   INPUT_IDLE_MS,
+  INPUT_STEPS_PER_SAMPLE,
   ITEM_BOX_RESPAWN_MS,
   MAX_CATCH_UP_STEPS,
   MAX_EVENTS_PER_SNAPSHOT,
@@ -44,7 +45,6 @@ import { sendServerMessage } from './socket.js'
 
 const COLORS = [0xff5d73, 0x57d9ff, 0xffd166, 0x9cff57]
 const MAX_INPUT_QUEUE = 30
-const INPUT_STEPS = 2
 
 interface QueuedInput extends Controls {
   seq: number
@@ -283,7 +283,7 @@ export class RaceRoom {
       return null
     }
     if (player.inputQueue.length >= MAX_INPUT_QUEUE) return 'Input queue is full.'
-    player.inputQueue.push({ ...controls, useItem: controls.useItem === true, seq, stepsRemaining: INPUT_STEPS })
+    player.inputQueue.push({ ...controls, useItem: controls.useItem === true, seq, stepsRemaining: INPUT_STEPS_PER_SAMPLE })
     player.lastReceivedSeq = seq
     player.lastInputAt = now
     return null
@@ -416,7 +416,7 @@ export class RaceRoom {
       const queued = player.inputQueue[0]
       if (queued) {
         player.controls = { throttle: queued.throttle, steer: queued.steer, brake: queued.brake }
-        if (queued.useItem && queued.stepsRemaining === INPUT_STEPS) this.useItem(player, now)
+        if (queued.useItem && queued.stepsRemaining === INPUT_STEPS_PER_SAMPLE) this.useItem(player, now)
         queued.stepsRemaining -= 1
         if (queued.stepsRemaining === 0) {
           player.lastProcessedSeq = queued.seq
@@ -427,7 +427,13 @@ export class RaceRoom {
       }
       const disabled = player.item.disabledUntil !== null && player.item.disabledUntil > now
       const turbo = player.boostUntil > now
-      stepKart(player.kart, disabled ? NEUTRAL_CONTROLS : player.controls, FIXED_DT, turbo ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 } : undefined)
+      stepKart(
+        player.kart,
+        disabled ? NEUTRAL_CONTROLS : player.controls,
+        FIXED_DT,
+        turbo ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 } : undefined,
+        this.track,
+      )
     }
 
     resolveKartCollisions(activePlayers.map((player) => player.kart), this.track)
@@ -644,28 +650,34 @@ export class RaceRoom {
         awards: this.awardsFor(player, ranked),
       }
     })
-    const karts: KartSnapshot[] = [...this.players.values()].map((player) => ({
-      id: player.id,
-      name: player.name,
-      color: player.color,
-      x: player.kart.x,
-      z: player.kart.z,
-      heading: player.kart.heading,
-      vx: player.kart.vx,
-      vz: player.kart.vz,
-      lap: player.race.lap,
-      nextCheckpoint: player.race.nextCheckpoint,
-      finishedAt: player.race.finishedAt,
-      finishPlace: player.race.finishPlace,
-      lastProcessedSeq: player.lastProcessedSeq,
-      heldItem: player.item.heldItem,
-      item: { ...player.item },
-      shieldedUntil: player.item.shieldedUntil,
-      immuneUntil: player.item.immuneUntil,
-      disabledUntil: player.item.disabledUntil,
-      eliminated: player.race.eliminated,
-      stats: { ...player.stats },
-    }))
+    const karts: KartSnapshot[] = [...this.players.values()].map((player) => {
+      const processingInput = player.inputQueue[0]
+      return {
+        id: player.id,
+        name: player.name,
+        color: player.color,
+        x: player.kart.x,
+        z: player.kart.z,
+        heading: player.kart.heading,
+        vx: player.kart.vx,
+        vz: player.kart.vz,
+        lap: player.race.lap,
+        nextCheckpoint: player.race.nextCheckpoint,
+        finishedAt: player.race.finishedAt,
+        finishPlace: player.race.finishPlace,
+        lastProcessedSeq: player.lastProcessedSeq,
+        processingInputSeq: processingInput?.seq ?? null,
+        processingInputStepsRemaining: processingInput?.stepsRemaining ?? 0,
+        heldItem: player.item.heldItem,
+        item: { ...player.item },
+        boostedUntil: player.boostUntil,
+        shieldedUntil: player.item.shieldedUntil,
+        immuneUntil: player.item.immuneUntil,
+        disabledUntil: player.item.disabledUntil,
+        eliminated: player.race.eliminated,
+        stats: { ...player.stats },
+      }
+    })
     const hazards = this.track.hazards.map((hazard) => ({ id: hazard.id, type: hazard.type, x: hazard.x, z: hazard.z, active: this.hazardActive(hazard, serverTime) }))
     this.sendAll({
       type: 'snapshot',
@@ -679,6 +691,7 @@ export class RaceRoom {
       standings,
       itemBoxes: this.itemBoxes.map((box) => ({ ...box })),
       hazards,
+      oilSlicks: this.oilSlicks.map(({ id, x, z, expiresAt }) => ({ id, x, z, expiresAt })),
       events: [...this.events],
       resumeExpiresAt: null,
     })

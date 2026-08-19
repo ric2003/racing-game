@@ -1,8 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import './App.css'
 import { GameCanvas } from './game/GameCanvas.js'
+import { Minimap } from './game/Minimap.js'
+import { DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
-import { LAPS_TO_WIN } from './shared/constants.js'
+import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
+import type { ItemType, RaceSettings } from './shared/protocol.js'
 
 const NAME_PATTERN = /^[A-Za-z0-9 _-]{2,16}$/
 
@@ -12,6 +15,8 @@ const EMPTY_NETWORK: NetworkState = {
   roomCode: null,
   lobby: null,
   snapshot: null,
+  reconnectToken: null,
+  reaction: null,
   error: null,
 }
 
@@ -19,10 +24,13 @@ function App() {
   const [client] = useState(() => new GameClient())
   const [network, setNetwork] = useState<NetworkState>(EMPTY_NETWORK)
   const [name, setName] = useState(() => localStorage.getItem('neon-apex-name') ?? '')
-  const [roomCode, setRoomCode] = useState('')
-  const [joinMode, setJoinMode] = useState(false)
+  const [roomCode, setRoomCode] = useState(() => new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '')
+  const [joinMode, setJoinMode] = useState(() => Boolean(new URLSearchParams(window.location.search).get('room')))
   const [copied, setCopied] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [showControls, setShowControls] = useState(() => localStorage.getItem('neon-apex-controls-seen') !== '1')
+  const [bindings, setBindings] = useState<KeyBindings>(() => loadKeyBindings())
+  const [rebinding, setRebinding] = useState<BindingAction | null>(null)
 
   useEffect(() => {
     const unsubscribe = client.subscribe(setNetwork)
@@ -31,6 +39,23 @@ function App() {
       client.disconnect()
     }
   }, [client])
+
+  useEffect(() => {
+    if (!rebinding) return undefined
+    const capture = (event: KeyboardEvent) => {
+      event.preventDefault()
+      if (event.code === 'Escape') {
+        setRebinding(null)
+        return
+      }
+      const next = { ...bindings, [rebinding]: event.code }
+      saveKeyBindings(next)
+      setBindings(next)
+      setRebinding(null)
+    }
+    window.addEventListener('keydown', capture, { once: true })
+    return () => window.removeEventListener('keydown', capture)
+  }, [bindings, rebinding])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -57,7 +82,15 @@ function App() {
     window.setTimeout(() => setCopied(false), 1_500)
   }
 
+  const copyInvite = async () => {
+    if (!network.roomCode) return
+    await navigator.clipboard.writeText(`${window.location.origin}/?room=${network.roomCode}`)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1_500)
+  }
+
   const phase = network.snapshot?.phase ?? network.lobby?.phase ?? 'lobby'
+  const settings = network.snapshot?.settings ?? network.lobby?.settings ?? DEFAULT_RACE_SETTINGS
   const localKart = network.snapshot?.karts.find((kart) => kart.id === network.playerId)
   const isHost = network.playerId !== null && network.lobby?.hostId === network.playerId
   const hasEnoughRacers = (network.lobby?.players.length ?? 0) >= 2
@@ -77,7 +110,7 @@ function App() {
           <h1 id="game-title">NEON<br /><em>APEX</em></h1>
           <p className="tagline">Four karts. Three laps. One clean line.</p>
           <div className="feature-row" aria-label="Game features">
-            <span>2–4 racers</span><span>Live rooms</span><span>Arcade handling</span>
+            <span>2–4 racers</span><span>Live rooms</span><span>Items + boosts</span>
           </div>
         </section>
 
@@ -148,9 +181,14 @@ function App() {
           <span>ROOM</span>
           <strong>{network.roomCode}</strong>
           <button type="button" onClick={copyCode} aria-label={copied ? 'Room code copied' : 'Copy room code'}>{copied ? 'COPIED' : 'COPY'}</button>
-          <span className="sr-only" aria-live="polite">{copied ? 'Room code copied.' : ''}</span>
+          <button type="button" onClick={copyInvite} aria-label="Copy invite link">LINK</button>
+          <span className="sr-only" aria-live="polite">{copied ? 'Invite copied.' : ''}</span>
         </div>
         <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>
+        {network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
+          <button className="reconnect-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
+        )}
+        {phase !== 'lobby' && <button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>KEYS</button>}
       </header>
 
       {phase === 'lobby' && (
@@ -163,14 +201,39 @@ function App() {
           </p>
           <ul className="roster">
             {network.lobby.players.map((player, index) => (
-              <li key={player.id}>
+              <li key={player.id} className={player.connected === false ? 'is-disconnected' : ''}>
                 <span className="kart-dot" style={{ backgroundColor: `#${player.color.toString(16).padStart(6, '0')}` }} />
                 <strong>{player.name}</strong>
-                <small>{player.id === network.lobby?.hostId ? 'HOST' : `P${index + 1}`}</small>
+                <small>{player.id === network.lobby?.hostId ? 'HOST' : player.connected === false ? 'AWAY' : `P${index + 1}`}</small>
               </li>
             ))}
             {Array.from({ length: 4 - network.lobby.players.length }, (_, index) => <li className="empty-slot" key={`empty-${index}`}>Waiting for racer…</li>)}
           </ul>
+
+          <div className="lobby-settings">
+            <div className="settings-heading"><span>RACE SETTINGS</span><small>{isHost ? 'HOST CONTROLS' : 'HOST SELECTS'}</small></div>
+            <label>TRACK
+              <select value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
+                {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
+              </select>
+            </label>
+            <label>LAPS
+              <select value={settings.laps} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, laps: Number(event.target.value) as RaceSettings['laps'] })}>
+                {[2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
+              </select>
+            </label>
+            <label>MODE
+              <select value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
+                <option value="standard">Standard Race</option>
+                <option value="knockout">Knockout</option>
+              </select>
+            </label>
+            <label className="toggle-setting"><input type="checkbox" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} /> ITEMS ON</label>
+            <div className="track-votes" aria-label="Track votes">
+              {(network.lobby.trackOptions ?? []).map((track) => <button key={track.id} type="button" className={(network.playerId !== null && network.lobby?.votes?.[network.playerId] === track.id) ? 'voted' : ''} onClick={() => client.voteTrack(track.id)}>{track.name}<small>{Object.values(network.lobby?.votes ?? {}).filter((vote) => vote === track.id).length}</small></button>)}
+            </div>
+          </div>
+
           {isHost ? (
             <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>
               {canStart ? 'Start race' : 'Waiting for one more racer'} <span aria-hidden="true">→</span>
@@ -187,20 +250,35 @@ function App() {
         </div>
       )}
 
-      {(phase === 'racing' || phase === 'countdown') && localKart && (
+      {showControls && (phase === 'countdown' || phase === 'racing') && (
+        <section className="controls-overlay glass-panel" aria-label="Driving controls">
+          <p className="panel-label">QUICK START</p>
+          <h2>Find your line</h2>
+          <p>{rebinding ? `Press a key for ${bindingLabel(rebinding)} (Esc cancels).` : 'Set your keys or keep the defaults.'}</p>
+          {!rebinding && <div className="binding-grid">
+            {(Object.keys(DEFAULT_KEY_BINDINGS) as BindingAction[]).map((action) => <button type="button" key={action} onClick={() => setRebinding(action)}><span>{bindingLabel(action)}</span><kbd>{formatBinding(bindings[action])}</kbd></button>)}
+          </div>}
+          <button className="primary-button" type="button" onClick={() => { localStorage.setItem('neon-apex-controls-seen', '1'); setShowControls(false) }}>Got it <span aria-hidden="true">→</span></button>
+        </section>
+      )}
+
+      {(phase === 'racing' || phase === 'countdown') && localKart && network.snapshot && (
         <>
           <section className="race-hud" aria-label="Race status">
-            <div><span>LAP</span><strong>{Math.min(localKart.lap + 1, LAPS_TO_WIN)}<small>/{LAPS_TO_WIN}</small></strong></div>
-            <div><span>POSITION</span><strong>{(network.snapshot?.standings.findIndex((standing) => standing.id === network.playerId) ?? -1) + 1}<small>/{network.snapshot?.standings.length}</small></strong></div>
+            <div><span>LAP</span><strong>{Math.min(localKart.lap + 1, settings.laps)}<small>/{settings.laps}</small></strong></div>
+            <div><span>POSITION</span><strong>{(network.snapshot.standings.findIndex((standing) => standing.id === network.playerId) ?? -1) + 1}<small>/{network.snapshot.standings.length}</small></strong></div>
+            <div><span>TIME</span><strong className="hud-time">{formatTime(network.snapshot.standings.find((standing) => standing.id === network.playerId)?.lapTime ?? null)}</strong></div>
+            <div className="item-slot"><span>ITEM</span><strong>{localKart.heldItem ? itemLabel(localKart.heldItem) : '—'}</strong><small>PRESS <kbd>E</kbd></small></div>
           </section>
           <aside className="standings glass-panel" aria-label="Live standings">
             <span>STANDINGS</span>
-            {network.snapshot?.standings.map((standing) => (
-              <div key={standing.id} className={standing.id === network.playerId ? 'is-you' : ''}>
-                <b>{standing.place}</b><strong>{standing.name}</strong><small>{standing.finished ? 'FIN' : `L${Math.min(standing.lap + 1, LAPS_TO_WIN)}`}</small>
+            {network.snapshot.standings.map((standing) => (
+              <div key={standing.id} className={`${standing.id === network.playerId ? 'is-you' : ''} ${standing.eliminated ? 'is-eliminated' : ''}`}>
+                <b>{standing.place}</b><strong>{standing.name}</strong><small>{standing.eliminated ? 'OUT' : standing.finished ? 'FIN' : `L${Math.min(standing.lap + 1, settings.laps)}`}</small>
               </div>
             ))}
           </aside>
+          <Minimap snapshot={network.snapshot} playerId={network.playerId} />
         </>
       )}
 
@@ -211,18 +289,44 @@ function App() {
           <ol>
             {network.snapshot?.standings.map((standing) => (
               <li key={standing.id} className={standing.id === network.playerId ? 'is-you' : ''}>
-                <span>{standing.place}</span><strong>{standing.name}</strong>{standing.id === network.playerId && <small>YOU</small>}
+                <span>{standing.place}</span>
+                <strong>{standing.name}<small>{standing.awards?.join(' · ')}</small></strong>
+                <small>{standing.id === network.playerId ? 'YOU' : formatTime(standing.bestLapTime ?? null)}</small>
               </li>
             ))}
           </ol>
-          <button className="primary-button" type="button" onClick={leave}>Back to race control <span aria-hidden="true">→</span></button>
+          {isHost ? <button className="primary-button" type="button" onClick={() => client.requestRematch()}>Race again <span aria-hidden="true">↻</span></button> : <p className="waiting-message">Waiting for the host to start a rematch…</p>}
+          <button className="text-button" type="button" onClick={leave}>Back to race control</button>
         </section>
       )}
 
       {network.error && <div className="network-error" role="alert">{network.error}</div>}
-      <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>R</kbd> RESET</span></footer>
+      {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
+      {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
+      <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> ITEM</span><span><kbd>R</kbd> RESET</span></footer>
     </main>
   )
+}
+
+function formatTime(milliseconds: number | null): string {
+  if (milliseconds === null || !Number.isFinite(milliseconds)) return '--:--'
+  return `${(milliseconds / 1_000).toFixed(2)}s`
+}
+
+function itemLabel(item: ItemType): string {
+  return item === 'pulse-bolt' ? 'BOLT' : item === 'oil-slick' ? 'OIL' : item.toUpperCase()
+}
+
+function reactionLabel(reaction: 'nice' | 'oops' | 'rematch'): string {
+  return reaction === 'nice' ? 'Nice!' : reaction === 'oops' ? 'Oops!' : 'Rematch?'
+}
+
+function bindingLabel(action: BindingAction): string {
+  return action === 'accelerate' ? 'ACCELERATE' : action === 'reverse' ? 'REVERSE' : action.toUpperCase()
+}
+
+function formatBinding(code: string): string {
+  return code.replace('Key', '').replace('Arrow', '').replace('Space', 'SPACE')
 }
 
 export default App

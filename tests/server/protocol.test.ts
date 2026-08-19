@@ -26,4 +26,17 @@ describe('client protocol validation', () => {
   it('rejects an oversized payload', () => {
     expect(parseClientMessage(Buffer.alloc(1_025, 97)).ok).toBe(false)
   })
+
+  it('accepts settings, votes, reconnects, rematches, and edge-triggered item input', () => {
+    expect(parseClientMessage(JSON.stringify({ type: 'update-race-settings', trackId: 'neon-harbor', laps: 5, itemsEnabled: true, mode: 'standard' })).ok).toBe(true)
+    expect(parseClientMessage(JSON.stringify({ type: 'cast-track-vote', trackId: 'skyway-switchbacks' })).ok).toBe(true)
+    expect(parseClientMessage(JSON.stringify({ type: 'request-rematch' })).ok).toBe(true)
+    expect(parseClientMessage(JSON.stringify({ type: 'resume-room', name: 'Alpha', roomCode: 'ABC234', token: 'a'.repeat(24) })).ok).toBe(true)
+    const input = parseClientMessage(JSON.stringify({ type: 'input', seq: 2, throttle: 1, steer: 0, brake: 0, useItem: true }))
+    expect(input.ok && input.message.type === 'input' ? input.message.useItem : false).toBe(true)
+  })
+
+  it('rejects an item action with a non-boolean value', () => {
+    expect(parseClientMessage(JSON.stringify({ type: 'input', seq: 2, throttle: 1, steer: 0, brake: 0, useItem: 'yes' })).ok).toBe(false)
+  })
 })

@@ -1,6 +1,6 @@
 import { FIXED_DT, HANDLING, KART_RADIUS } from './constants.js'
 import type { Controls } from './protocol.js'
-import { legalTrackRadius, nearestTrackPoint } from './track.js'
+import { DEFAULT_TRACK, legalTrackRadius, nearestTrackPoint, type TrackDefinition } from './track.js'
 
 export interface KartState {
   id: string
@@ -11,11 +11,16 @@ export interface KartState {
   vz: number
 }
 
+export interface StepModifiers {
+  accelerationMultiplier?: number
+  maxSpeedMultiplier?: number
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT): void {
+export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT, modifiers: StepModifiers = {}): void {
   const throttle = clamp(controls.throttle, -1, 1)
   const steer = clamp(controls.steer, -1, 1)
   const brake = clamp(controls.brake, 0, 1)
@@ -27,14 +32,16 @@ export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT): vo
   let lateralSpeed = kart.vx * rightX + kart.vz * rightZ
 
   const acceleration = throttle >= 0 ? HANDLING.acceleration : HANDLING.reverseAcceleration
-  forwardSpeed += throttle * acceleration * dt
+  const accelerationMultiplier = Math.max(0, modifiers.accelerationMultiplier ?? 1)
+  const maxSpeedMultiplier = Math.max(0.1, modifiers.maxSpeedMultiplier ?? 1)
+  forwardSpeed += throttle * acceleration * accelerationMultiplier * dt
   if (brake > 0 && Math.abs(forwardSpeed) > 0.05) {
     const brakeDelta = HANDLING.brakeForce * brake * dt
     forwardSpeed = Math.sign(forwardSpeed) * Math.max(0, Math.abs(forwardSpeed) - brakeDelta)
   }
   const drag = (HANDLING.rollingDrag + Math.abs(forwardSpeed) * HANDLING.aerodynamicDrag) * dt
   forwardSpeed = Math.sign(forwardSpeed) * Math.max(0, Math.abs(forwardSpeed) - drag)
-  forwardSpeed = clamp(forwardSpeed, -HANDLING.maxReverseSpeed, HANDLING.maxForwardSpeed)
+  forwardSpeed = clamp(forwardSpeed, -HANDLING.maxReverseSpeed * maxSpeedMultiplier, HANDLING.maxForwardSpeed * maxSpeedMultiplier)
   lateralSpeed *= Math.max(0, 1 - HANDLING.lateralGrip * dt)
 
   const steeringStrength = Math.min(1, Math.abs(forwardSpeed) / 5)
@@ -52,8 +59,8 @@ export function stepKart(kart: KartState, controls: Controls, dt = FIXED_DT): vo
   constrainToTrack(kart)
 }
 
-export function constrainToTrack(kart: KartState): void {
-  const nearest = nearestTrackPoint(kart)
+export function constrainToTrack(kart: KartState, track: TrackDefinition = DEFAULT_TRACK): void {
+  const nearest = nearestTrackPoint(kart, track)
   const legal = legalTrackRadius()
   if (nearest.distance <= legal) return
   const dx = kart.x - nearest.x
@@ -92,7 +99,7 @@ function hasCollisionOverlap(karts: KartState[], minimumDistance: number): boole
   return false
 }
 
-export function resolveKartCollisions(karts: KartState[]): void {
+export function resolveKartCollisions(karts: KartState[], track: TrackDefinition = DEFAULT_TRACK): void {
   const ordered = [...karts].sort((left, right) => left.id.localeCompare(right.id))
   const minimumDistance = KART_RADIUS * 2
   for (let iteration = 0; iteration < MAX_COLLISION_ITERATIONS; iteration += 1) {
@@ -127,7 +134,7 @@ export function resolveKartCollisions(karts: KartState[]): void {
       }
     }
     if (!foundOverlap) break
-    for (const kart of ordered) constrainToTrack(kart)
+    for (const kart of ordered) constrainToTrack(kart, track)
     if (!hasCollisionOverlap(ordered, minimumDistance)) break
   }
 }

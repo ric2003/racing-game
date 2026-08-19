@@ -29,6 +29,7 @@ Open `http://localhost:3001`. The Node process serves `dist/` and accepts WebSoc
 
 - `WASD` or arrow keys: accelerate, reverse, and steer
 - `Space`: brake
+- `E`: use the held item
 - `R`: reset to the nearest legal point on the track
 
 Click the game canvas before driving. This keeps gameplay keys from taking over the page when the game does not have focus.
@@ -58,7 +59,7 @@ The test suite covers simulation rules, checkpoint order, protocol rejection, ro
 - `src/game/` owns Three.js rendering, keyboard input, local prediction, reconciliation, and remote interpolation.
 - `src/network/` owns the browser WebSocket connection. Clients send controls and lobby actions, never race state.
 
-The server runs a fixed 60 Hz simulation and sends snapshots at 20 Hz. Clients send bounded controls at 30 Hz. The local kart uses prediction with authoritative correction; remote karts render from a short snapshot buffer.
+The server runs a fixed 60 Hz simulation and sends snapshots at 20 Hz. Clients send bounded controls at 30 Hz. The local kart uses prediction with authoritative correction; remote karts render from a short snapshot buffer. Race settings, lap timing, item effects, hazards, standings, and finish awards are authoritative snapshots from the server.
 
 ## Environment
 
@@ -70,5 +71,5 @@ The server runs a fixed 60 Hz simulation and sends snapshots at 20 Hz. Clients s
 
 ## MVP limits
 
-This is a single-process private-room MVP, not a production live service. It has no accounts, persistence, matchmaking, chat, bots, items, mobile controls, reconnect recovery, or multi-instance room coordination. Room codes provide discovery, not identity or host authentication. Put TLS and WSS at the hosting edge before exposing the server to the internet.
+This is a single-process private-room MVP, not a production live service. It has no accounts, persistence, matchmaking, free-form chat, bots, mobile controls, or multi-instance room coordination. Reconnect tokens are short-lived room credentials, not accounts or host authentication. Room codes provide discovery, not identity. Put TLS and WSS at the hosting edge before exposing the server to the internet.
 # racing-game

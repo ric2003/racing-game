@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRaceProgress, rankRace, updateRaceProgress, type RaceEntry } from '../../src/shared/race.js'
+import { beginRaceTiming, createRaceProgress, rankRace, updateRaceProgress, type RaceEntry } from '../../src/shared/race.js'
 import { CHECKPOINTS, nearestTrackPoint } from '../../src/shared/track.js'
 
 function entry(id: string, overrides: Partial<RaceEntry> = {}): RaceEntry {
@@ -88,5 +88,22 @@ describe('race progress', () => {
       entry('racing', { lap: 2, nextCheckpoint: 0, trackProgress: 0.99 }),
       entry('finished', { lap: 3, finishedAt: 1_000, finishPlace: 1 }),
     ])[0].id).toBe('finished')
+  })
+
+  it('records authoritative sector and lap timing without starting during countdown', () => {
+    const race = createRaceProgress()
+    beginRaceTiming(race, 1_000)
+    let time = 1_000
+    for (const checkpoint of [...CHECKPOINTS.slice(1).map(({ index }) => index), 0]) {
+      time += 100
+      const crossing = cross(checkpoint)
+      updateRaceProgress(race, crossing.previous, crossing.current, time)
+    }
+    expect(race.raceStartedAt).toBe(1_000)
+    expect(race.lastLapTime).toBe(800)
+    expect(race.bestLapTime).toBe(800)
+    expect(race.bestSectorTimes).toHaveLength(CHECKPOINTS.length)
+    expect(race.sectorTimes).toHaveLength(0)
+    expect(race.finishedAt).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { CHECKPOINTS, nearestTrackPoint, TRACK_POINTS } from '../shared/track.js'
+import { DEFAULT_TRACK, nearestTrackPoint, type TrackDefinition } from '../shared/track.js'
 import { TRACK_WIDTH } from '../shared/constants.js'
 
 export interface TrackVisual {
@@ -23,22 +23,22 @@ function offsetPoint(point: { x: number; z: number }, sideX: number, sideZ: numb
   return [point.x + sideX * offset, y, point.z + sideZ * offset]
 }
 
-function segmentSide(index: number): { x: number; z: number } {
-  const start = TRACK_POINTS[index]
-  const end = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
+function segmentSide(track: TrackDefinition, index: number): { x: number; z: number } {
+  const start = track.points[index]
+  const end = track.points[(index + 1) % track.points.length]
   const dx = end.x - start.x
   const dz = end.z - start.z
   const length = Math.max(0.0001, Math.hypot(dx, dz))
   return { x: dz / length, z: -dx / length }
 }
 
-function createStripGeometry(leftOffset: number, rightOffset: number, y: number, alternatingGroups = false): THREE.BufferGeometry {
+function createStripGeometry(track: TrackDefinition, leftOffset: number, rightOffset: number, y: number, alternatingGroups = false): THREE.BufferGeometry {
   const positions: number[] = []
-  for (let index = 0; index < TRACK_POINTS.length; index += 1) {
-    const point = TRACK_POINTS[index]
-    const next = TRACK_POINTS[(index + 1) % TRACK_POINTS.length]
-    const side = segmentSide(index)
-    const nextSide = segmentSide((index + 1) % TRACK_POINTS.length)
+  for (let index = 0; index < track.points.length; index += 1) {
+    const point = track.points[index]
+    const next = track.points[(index + 1) % track.points.length]
+    const side = segmentSide(track, index)
+    const nextSide = segmentSide(track, (index + 1) % track.points.length)
     const startLeft = offsetPoint(point, side.x, side.z, leftOffset, y)
     const startRight = offsetPoint(point, side.x, side.z, rightOffset, y)
     const endLeft = offsetPoint(next, side.x, side.z, leftOffset, y)
@@ -61,7 +61,7 @@ function createStripGeometry(leftOffset: number, rightOffset: number, y: number,
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geometry.computeVertexNormals()
   if (alternatingGroups) {
-    for (let index = 0; index < TRACK_POINTS.length; index += 1) {
+    for (let index = 0; index < track.points.length; index += 1) {
       // Keep each segment and its corner join in the same curb color.
       // Vertices are local because a naive shared offset polyline can fold
       // across the road at the two tight hairpins.
@@ -79,13 +79,13 @@ function seededRandom(seed: number): () => number {
   }
 }
 
-export function createTrackMesh(): TrackVisual {
+export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVisual {
   const group = new THREE.Group()
-  const roadGeometry = createStripGeometry(TRACK_WIDTH / 2, -TRACK_WIDTH / 2, 0.03)
+  const roadGeometry = createStripGeometry(track, TRACK_WIDTH / 2, -TRACK_WIDTH / 2, 0.03)
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x343547, roughness: 0.92 })
   const curbWidth = 0.65
-  const leftCurbGeometry = createStripGeometry(TRACK_WIDTH / 2 + curbWidth, TRACK_WIDTH / 2, 0.12, true)
-  const rightCurbGeometry = createStripGeometry(-TRACK_WIDTH / 2, -TRACK_WIDTH / 2 - curbWidth, 0.12, true)
+  const leftCurbGeometry = createStripGeometry(track, TRACK_WIDTH / 2 + curbWidth, TRACK_WIDTH / 2, 0.12, true)
+  const rightCurbGeometry = createStripGeometry(track, -TRACK_WIDTH / 2, -TRACK_WIDTH / 2 - curbWidth, 0.12, true)
   const edgeMaterials = [
     new THREE.MeshStandardMaterial({ color: 0xf7efe4, roughness: 0.7, depthWrite: false }),
     new THREE.MeshStandardMaterial({ color: 0xff4f70, roughness: 0.7, depthWrite: false }),
@@ -101,12 +101,32 @@ export function createTrackMesh(): TrackVisual {
   const markerGeometry = new THREE.BoxGeometry(TRACK_WIDTH - 0.8, 0.03, 0.55)
   const checkpointMaterial = new THREE.MeshStandardMaterial({ color: 0x62e6ff, emissive: 0x1b6c7b, emissiveIntensity: 0.5 })
   const startMaterial = new THREE.MeshStandardMaterial({ color: 0xf6f1df })
-  CHECKPOINTS.forEach((checkpoint, index) => {
+  track.checkpoints.forEach((checkpoint, index) => {
     const marker = new THREE.Mesh(markerGeometry, index === 0 ? startMaterial : checkpointMaterial)
     marker.position.set(checkpoint.x, 0.15, checkpoint.z)
     marker.rotation.y = Math.atan2(checkpoint.normalX, checkpoint.normalZ)
     group.add(marker)
   })
+
+  const itemGeometry = new THREE.OctahedronGeometry(0.7, 1)
+  const itemMaterial = new THREE.MeshStandardMaterial({ color: 0x56d9f3, emissive: 0x1b6c7b, emissiveIntensity: 1.2, roughness: 0.35, metalness: 0.2 })
+  for (const point of track.itemBoxes) {
+    const item = new THREE.Mesh(itemGeometry, itemMaterial)
+    item.position.set(point.x, 0.85, point.z)
+    item.castShadow = true
+    group.add(item)
+  }
+  const padGeometry = new THREE.BoxGeometry(5.2, 0.08, 2.2)
+  const padMaterial = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0x8b5d09, emissiveIntensity: 0.8 })
+  const barrierGeometry = new THREE.BoxGeometry(4.5, 1.4, 0.55)
+  const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xff4f70, emissive: 0x7b142b, emissiveIntensity: 0.6 })
+  for (const hazard of track.hazards) {
+    const visual = new THREE.Mesh(hazard.type === 'boost-pad' ? padGeometry : barrierGeometry, hazard.type === 'boost-pad' ? padMaterial : barrierMaterial)
+    visual.position.set(hazard.x, hazard.type === 'boost-pad' ? 0.12 : 0.8, hazard.z)
+    visual.rotation.y = hazard.phase ? hazard.phase * Math.PI * 2 : 0
+    visual.castShadow = true
+    group.add(visual)
+  }
 
   const trunkGeometry = new THREE.CylinderGeometry(0.28, 0.38, 2.2, 6)
   const crownGeometry = new THREE.ConeGeometry(1.35, 3.4, 7)
@@ -123,7 +143,7 @@ export function createTrackMesh(): TrackVisual {
     attempts += 1
     const x = -118 + random() * 230
     const z = -88 + random() * 178
-    if (nearestTrackPoint({ x, z }).distance < TRACK_WIDTH / 2 + 4) continue
+    if (nearestTrackPoint({ x, z }, track).distance < TRACK_WIDTH / 2 + 4) continue
     if (Math.abs(x - 8) < 14 && Math.abs(z + 64) < 9) continue
     matrix.makeTranslation(x, 1.1, z)
     trunks.setMatrixAt(placedTrees, matrix)
@@ -161,6 +181,12 @@ export function createTrackMesh(): TrackVisual {
       crownMaterial.dispose()
       standMaterial.dispose()
       standGeometry.dispose()
+      itemGeometry.dispose()
+      itemMaterial.dispose()
+      padGeometry.dispose()
+      padMaterial.dispose()
+      barrierGeometry.dispose()
+      barrierMaterial.dispose()
     },
   }
 }

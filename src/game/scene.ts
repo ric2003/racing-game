@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { KartSnapshot } from '../shared/protocol.js'
 import { createKartMesh, type KartVisual } from './kart-mesh.js'
 import { createTrackMesh } from './track-mesh.js'
+import { DEFAULT_TRACK, type TrackDefinition } from '../shared/track.js'
 
 export interface RenderKart extends KartSnapshot {
   correctionX?: number
@@ -10,12 +11,12 @@ export interface RenderKart extends KartSnapshot {
 
 export interface RaceScene {
   setAnimationLoop: (callback: ((time: number) => void) | null) => void
-  render: (karts: RenderKart[], localId: string, delta: number) => void
+  render: (karts: RenderKart[], localId: string, delta: number, cameraId?: string) => void
   resize: () => void
   dispose: () => void
 }
 
-export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolean): RaceScene {
+export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolean, track: TrackDefinition = DEFAULT_TRACK): RaceScene {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.shadowMap.enabled = true
@@ -47,8 +48,8 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   ground.position.y = -0.09
   ground.receiveShadow = true
   scene.add(ground)
-  const track = createTrackMesh()
-  scene.add(track.group)
+  const trackVisual = createTrackMesh(track)
+  scene.add(trackVisual.group)
 
   const kartVisuals = new Map<string, KartVisual>()
   const cameraPosition = new THREE.Vector3()
@@ -64,7 +65,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
     }
   }
 
-  function render(karts: RenderKart[], localId: string, delta: number) {
+  function render(karts: RenderKart[], localId: string, delta: number, cameraId = localId) {
     const active = new Set(karts.map((kart) => kart.id))
     for (const [id, visual] of kartVisuals) {
       if (!active.has(id)) {
@@ -86,18 +87,18 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       for (const wheel of visual.wheels) wheel.rotation.x -= speed * delta * 1.9
     }
 
-    const local = karts.find((kart) => kart.id === localId)
-    if (local) {
-      const forwardX = Math.sin(local.heading)
-      const forwardZ = Math.cos(local.heading)
-      const desired = new THREE.Vector3(local.x - forwardX * 11, 7.1, local.z - forwardZ * 11)
-      const look = new THREE.Vector3(local.x + forwardX * 4, 1.1, local.z + forwardZ * 4)
+    const cameraKart = karts.find((kart) => kart.id === cameraId) ?? karts.find((kart) => kart.id === localId)
+    if (cameraKart) {
+      const forwardX = Math.sin(cameraKart.heading)
+      const forwardZ = Math.cos(cameraKart.heading)
+      const desired = new THREE.Vector3(cameraKart.x - forwardX * 11, 7.1, cameraKart.z - forwardZ * 11)
+      const look = new THREE.Vector3(cameraKart.x + forwardX * 4, 1.1, cameraKart.z + forwardZ * 4)
       const response = reducedMotion ? 1 : 1 - Math.exp(-7 * delta)
       cameraPosition.copy(camera.position).lerp(desired, response)
       camera.position.copy(cameraPosition)
       cameraLookAt.lerp(look, response)
       camera.lookAt(cameraLookAt)
-      const speed = Math.hypot(local.vx, local.vz)
+      const speed = Math.hypot(cameraKart.vx, cameraKart.vz)
       camera.fov += ((58 + Math.min(10, speed * 0.25)) - camera.fov) * response
       camera.updateProjectionMatrix()
     }
@@ -113,7 +114,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       renderer.setAnimationLoop(null)
       for (const visual of kartVisuals.values()) visual.dispose()
       kartVisuals.clear()
-      track.dispose()
+      trackVisual.dispose()
       groundGeometry.dispose()
       groundMaterial.dispose()
       renderer.dispose()

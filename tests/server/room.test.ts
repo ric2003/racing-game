@@ -173,4 +173,43 @@ describe('authoritative race room', () => {
     expect(socket.terminate).toHaveBeenCalledOnce()
     expect(socket.send).not.toHaveBeenCalled()
   })
+
+  it('supports host settings, track votes, rematches, and deterministic item pickup', () => {
+    const { room, advance } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.addPlayer('b', 'Bravo', closedSocket())
+    room.addPlayer('c', 'Charlie', closedSocket())
+    expect(room.updateSettings(host.id, { trackId: 'neon-harbor', laps: 2, itemsEnabled: true, mode: 'standard' })).toBeNull()
+    expect(room.castTrackVote('b', 'neon-harbor')).toBeNull()
+    expect(room.castTrackVote('c', 'neon-harbor')).toBeNull()
+    expect(room.start(host.id)).toBeNull()
+    expect(room.settings.trackId).toBe('neon-harbor')
+    room.phase = 'racing'
+    const box = room.itemBoxSnapshots[0]
+    host.kart.x = box.x
+    host.kart.z = box.z
+    advance()
+    expect(host.item.heldItem).not.toBeNull()
+    host.item.heldItem = 'shield'
+    expect(room.setInput(host.id, 1, { throttle: 0, steer: 0, brake: 0, useItem: true }, 17)).toBeNull()
+    advance()
+    expect(host.item.heldItem).toBeNull()
+    expect(host.item.shieldedUntil).not.toBeNull()
+    room.phase = 'finished'
+    expect(room.requestRematch(host.id)).toBeNull()
+    expect(room.phase).toBe('lobby')
+    expect(host.race.lap).toBe(0)
+  })
+
+  it('reclaims a disconnected racer using its short-lived resume token', () => {
+    const { room } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    const token = player.resumeToken
+    room.addPlayer('b', 'Bravo', closedSocket())
+    room.suspendPlayer(player.id)
+    expect(room.players.has(player.id)).toBe(false)
+    const resumed = room.resumePlayerByToken('Alpha', token, closedSocket())
+    expect(resumed?.id).toBe(player.id)
+    expect(room.players.has(player.id)).toBe(true)
+  })
 })

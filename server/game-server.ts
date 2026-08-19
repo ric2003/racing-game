@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { WebSocketServer, type RawData } from 'ws'
 import { MAX_MESSAGE_BYTES } from '../src/shared/constants.js'
-import type { ClientMessage } from '../src/shared/protocol.js'
+import type { ClientMessage, RaceSettings } from '../src/shared/protocol.js'
 import { RaceRoom } from './room.js'
 import { createPlayerId, createRoomCode } from './room-code.js'
 import { sendServerMessage } from './socket.js'
@@ -13,6 +13,7 @@ import { isAllowedOrigin, parseClientMessage } from './validation.js'
 interface ConnectionContext {
   playerId: string
   room: RaceRoom | null
+  reconnectToken: string | null
   strikes: number
   lobbyTimes: number[]
   inputTimes: number[]
@@ -82,6 +83,7 @@ export async function createGameServer(options: GameServerOptions = {}): Promise
     const context: ConnectionContext = {
       playerId: createPlayerId(),
       room: null,
+      reconnectToken: null,
       strikes: 0,
       lobbyTimes: [],
       inputTimes: [],
@@ -115,9 +117,15 @@ export async function createGameServer(options: GameServerOptions = {}): Promise
         const code = createRoomCode(new Set(rooms.keys()))
         const room = new RaceRoom(code, now, (emptyCode) => rooms.delete(emptyCode))
         rooms.set(code, room)
-        room.addPlayer(context.playerId, message.name, socket)
+        const player = room.addPlayer(context.playerId, message.name, socket)
+        if (!player) {
+          rooms.delete(code)
+          fail('room-unavailable', 'That room is unavailable.', false)
+          return
+        }
         context.room = room
-        sendServerMessage(socket, { type: 'welcome', playerId: context.playerId, roomCode: code })
+        context.reconnectToken = player.resumeToken
+        sendServerMessage(socket, { type: 'welcome', playerId: context.playerId, roomCode: code, reconnectToken: player.resumeToken })
         room.broadcastLobby()
         room.broadcastSnapshot()
         return
@@ -135,7 +143,28 @@ export async function createGameServer(options: GameServerOptions = {}): Promise
           return
         }
         context.room = room
-        sendServerMessage(socket, { type: 'welcome', playerId: context.playerId, roomCode: room.code })
+        context.reconnectToken = player.resumeToken
+        sendServerMessage(socket, { type: 'welcome', playerId: context.playerId, roomCode: room.code, reconnectToken: player.resumeToken })
+        room.broadcastLobby()
+        room.broadcastSnapshot()
+        return
+      }
+
+      if (message.type === 'resume-room') {
+        if (context.room) {
+          fail('already-joined', 'Leave the current room before resuming another.', false)
+          return
+        }
+        const room = rooms.get(message.roomCode)
+        const player = room?.resumePlayerByToken(message.name, message.token, socket)
+        if (!room || !player) {
+          fail('resume-unavailable', 'That reconnect window has expired.', false)
+          return
+        }
+        context.playerId = player.id
+        context.reconnectToken = player.resumeToken
+        context.room = room
+        sendServerMessage(socket, { type: 'welcome', playerId: player.id, roomCode: room.code, reconnectToken: player.resumeToken })
         room.broadcastLobby()
         room.broadcastSnapshot()
         return
@@ -148,11 +177,30 @@ export async function createGameServer(options: GameServerOptions = {}): Promise
       if (message.type === 'start-race') {
         const error = context.room.start(context.playerId)
         if (error) fail('start-denied', error, false)
+      } else if (message.type === 'update-race-settings') {
+        const settings: RaceSettings = {
+          trackId: message.trackId,
+          laps: message.laps,
+          itemsEnabled: message.itemsEnabled,
+          mode: message.mode,
+        }
+        const error = context.room.updateSettings(context.playerId, settings)
+        if (error) fail('settings-denied', error, false)
+      } else if (message.type === 'cast-track-vote') {
+        const error = context.room.castTrackVote(context.playerId, message.trackId)
+        if (error) fail('vote-denied', error, false)
+      } else if (message.type === 'request-rematch') {
+        const error = context.room.requestRematch(context.playerId)
+        if (error) fail('rematch-denied', error, false)
+      } else if (message.type === 'quick-reaction') {
+        const error = context.room.quickReaction(context.playerId, message.reaction)
+        if (error) fail('reaction-denied', error, false)
       } else if (message.type === 'input') {
         const error = context.room.setInput(context.playerId, message.seq, {
           throttle: message.throttle,
           steer: message.steer,
           brake: message.brake,
+          useItem: message.useItem,
         }, time)
         if (error) fail('input-rejected', error)
       } else if (message.type === 'reset') {
@@ -161,7 +209,7 @@ export async function createGameServer(options: GameServerOptions = {}): Promise
       }
     })
 
-    socket.on('close', () => context.room?.removePlayer(context.playerId))
+    socket.on('close', () => context.room?.suspendPlayer(context.playerId))
     socket.on('error', () => undefined)
   })
 

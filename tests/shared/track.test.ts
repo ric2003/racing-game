@@ -8,6 +8,7 @@ import {
   nearestTrackPoint,
   START_GRID,
   TRACK_POINTS,
+  TRACKS,
   type Point2,
 } from '../../src/shared/track.js'
 
@@ -126,6 +127,20 @@ describe('technical track geometry', () => {
       })
     } finally {
       visual.dispose()
+    }
+  })
+
+  it('exposes three versioned circuits with valid starts, checkpoints, item boxes, and hazards', () => {
+    expect(TRACKS.map((track) => track.id)).toEqual(['neon-classic', 'neon-harbor', 'skyway-switchbacks'])
+    for (const track of TRACKS) {
+      expect(track.version).toBe(1)
+      expect(track.points).toHaveLength(168)
+      expect(track.checkpoints).toHaveLength(8)
+      expect(track.startGrid).toHaveLength(4)
+      expect(track.itemBoxes).toHaveLength(8)
+      expect(track.hazards.length).toBeGreaterThan(0)
+      expectNoSelfIntersections(track.points)
+      for (const spawn of track.startGrid) expect(nearestTrackPoint(spawn, track).distance).toBeLessThanOrEqual(legalTrackRadius() + 0.001)
     }
   })
 })

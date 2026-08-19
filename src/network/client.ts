@@ -1,4 +1,4 @@
-import type { ClientMessage, Controls, PendingInput, ServerMessage } from '../shared/protocol.js'
+import type { ClientMessage, Controls, PendingInput, QuickReaction, RaceSettings, ServerMessage } from '../shared/protocol.js'
 
 export type { PendingInput } from '../shared/protocol.js'
 
@@ -8,6 +8,8 @@ export interface NetworkState {
   roomCode: string | null
   lobby: Extract<ServerMessage, { type: 'lobby' }> | null
   snapshot: Extract<ServerMessage, { type: 'snapshot' }> | null
+  reconnectToken: string | null
+  reaction: Extract<ServerMessage, { type: 'reaction' }> | null
   error: string | null
 }
 
@@ -17,6 +19,8 @@ const initialState: NetworkState = {
   roomCode: null,
   lobby: null,
   snapshot: null,
+  reconnectToken: null,
+  reaction: null,
   error: null,
 }
 
@@ -41,12 +45,34 @@ export class GameClient {
     this.connect({ type: 'join-room', name, roomCode })
   }
 
+  resumeRoom(name: string, roomCode: string, token?: string): void {
+    const reconnectToken = token ?? this.reconnectTokenFor(roomCode)
+    if (!reconnectToken) return
+    this.connect({ type: 'resume-room', name, roomCode, token: reconnectToken })
+  }
+
   startRace(): void {
     this.send({ type: 'start-race' })
   }
 
   resetKart(): void {
     this.send({ type: 'reset' })
+  }
+
+  updateRaceSettings(settings: RaceSettings): void {
+    this.send({ type: 'update-race-settings', ...settings })
+  }
+
+  voteTrack(trackId: string): void {
+    this.send({ type: 'cast-track-vote', trackId })
+  }
+
+  requestRematch(): void {
+    this.send({ type: 'request-rematch' })
+  }
+
+  sendReaction(reaction: QuickReaction): void {
+    this.send({ type: 'quick-reaction', reaction })
   }
 
   sendInput(controls: Controls): PendingInput {
@@ -95,13 +121,16 @@ export class GameClient {
         return
       }
       if (message.type === 'welcome') {
-        this.setState({ ...this.state, playerId: message.playerId, roomCode: message.roomCode })
+        localStorage.setItem(this.tokenKey(message.roomCode), message.reconnectToken)
+        this.setState({ ...this.state, playerId: message.playerId, roomCode: message.roomCode, reconnectToken: message.reconnectToken })
       } else if (message.type === 'lobby') {
         this.setState({ ...this.state, lobby: message, roomCode: message.roomCode })
       } else if (message.type === 'snapshot') {
         this.setState({ ...this.state, snapshot: message })
       } else if (message.type === 'error') {
         this.setState({ ...this.state, error: message.message })
+      } else if (message.type === 'reaction') {
+        this.setState({ ...this.state, reaction: message })
       }
     }
     socket.onerror = () => this.setState({ ...this.state, error: 'Could not reach the race server.' })
@@ -114,6 +143,18 @@ export class GameClient {
 
   private send(message: ClientMessage): void {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message))
+  }
+
+  private tokenKey(roomCode: string): string {
+    return `neon-apex-reconnect:${roomCode}`
+  }
+
+  private reconnectTokenFor(roomCode: string): string | null {
+    try {
+      return localStorage.getItem(this.tokenKey(roomCode))
+    } catch {
+      return null
+    }
   }
 
   private setState(state: NetworkState): void {

@@ -52,7 +52,7 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
   }, [client, playerId, snapshot])
 
   useEffect(() => {
-    if (snapshot.phase !== 'countdown' && snapshot.phase !== 'racing') return undefined
+    if (snapshot.phase !== 'lobby' && snapshot.phase !== 'countdown' && snapshot.phase !== 'racing') return undefined
     const frame = window.requestAnimationFrame(() => canvasRef.current?.focus({ preventScroll: true }))
     return () => window.cancelAnimationFrame(frame)
   }, [snapshot.phase])
@@ -97,14 +97,14 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
       const delta = Math.min(0.1, Math.max(0, (time - previousTime) / 1_000))
       previousTime = time
       const latest = snapshotRef.current
-      if (latest.phase === 'racing') {
+      if (latest.phase === 'racing' || latest.phase === 'lobby') {
         const rawControls = input.read()
         smoothedSteering = smoothSteering(smoothedSteering, rawControls.steer, delta)
         const controls = { ...rawControls, steer: smoothedSteering }
-        pendingUseItem = pendingUseItem || input.consumeItem()
+        pendingUseItem = latest.phase === 'racing' && (pendingUseItem || input.consumeItem())
         const samples = inputScheduler.takeSamples(delta)
         for (let sample = 0; sample < samples; sample += 1) {
-          currentInput = client.sendInput({ ...controls, useItem: pendingUseItem })
+          currentInput = client.sendInput({ ...controls, useItem: latest.phase === 'racing' && pendingUseItem })
           pendingUseItem = false
         }
         predictorRef.current.advance(delta, currentInput)

@@ -206,54 +206,62 @@ function App() {
       </header>
 
       {phase === 'lobby' && (
-        <section className="lobby-panel glass-panel" aria-labelledby="lobby-title">
-          <p className="panel-label">PRE-RACE LOBBY</p>
-          <h2 id="lobby-title">Grid forming</h2>
-          <p className="room-invite">Share <strong>{network.roomCode}</strong> with up to three friends.</p>
-          <p className="sr-only" aria-live="polite">
-            {`${network.lobby.players.length} racers joined. ${hasEnoughRacers ? isHost ? 'You can start the race.' : 'The host can start the race.' : 'Waiting for at least two racers.'}`}
-          </p>
-          <ul className="roster">
-            {network.lobby.players.map((player, index) => (
-              <li key={player.id} className={player.connected === false ? 'is-disconnected' : ''}>
-                <span className="kart-dot" style={{ backgroundColor: `#${player.color.toString(16).padStart(6, '0')}` }} />
-                <strong>{player.name}</strong>
-                <small>{player.id === network.lobby?.hostId ? 'HOST' : player.connected === false ? 'AWAY' : `P${index + 1}`}</small>
-              </li>
-            ))}
-            {Array.from({ length: 4 - network.lobby.players.length }, (_, index) => <li className="empty-slot" key={`empty-${index}`}>Waiting for racer…</li>)}
-          </ul>
+        <section className="lobby-panel glass-panel" aria-label="Pre-race lobby">
+          <div className="lobby-content">
+            <p className="panel-label">PRE-RACE LOBBY</p>
+            <p className="room-invite">Share <strong>{network.roomCode}</strong> with up to three friends.</p>
+            <div className="warmup-note" role="status">
+              <strong>{hasEnoughRacers ? 'Warm-up open' : 'Waiting for another racer'}</strong>
+              <span>{hasEnoughRacers
+                ? isHost ? 'Drive while you wait, or start when ready. The race resets everyone to the grid.' : 'Drive while the host gets ready. The race resets everyone to the grid.'
+                : 'Drive while you wait. Use WASD or arrow keys.'}</span>
+            </div>
+            <p className="sr-only" aria-live="polite">
+              {`${network.lobby.players.length} racers joined. ${hasEnoughRacers ? isHost ? 'You can start the race.' : 'The host can start the race.' : 'Waiting for at least two racers.'}`}
+            </p>
+            <ul className="roster">
+              {network.lobby.players.map((player, index) => (
+                <li key={player.id} className={player.connected === false ? 'is-disconnected' : ''}>
+                  <span className="kart-dot" style={{ backgroundColor: `#${player.color.toString(16).padStart(6, '0')}` }} />
+                  <strong>{player.name}</strong>
+                  <small>{player.id === network.lobby?.hostId ? 'HOST' : player.connected === false ? 'AWAY' : `P${index + 1}`}</small>
+                </li>
+              ))}
+              {Array.from({ length: 4 - network.lobby.players.length }, (_, index) => <li className="empty-slot" key={`empty-${index}`}>Waiting for racer…</li>)}
+            </ul>
 
-          <div className="lobby-settings">
-            <div className="settings-heading"><span>RACE SETTINGS</span><small>{isHost ? 'HOST CONTROLS' : 'HOST SELECTS'}</small></div>
-            <label>TRACK
-              <select value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
-                {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
-              </select>
-            </label>
-            <label>LAPS
-              <select value={settings.laps} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, laps: Number(event.target.value) as RaceSettings['laps'] })}>
-                {[2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
-              </select>
-            </label>
-            <label>MODE
-              <select value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
-                <option value="standard">Standard Race</option>
-                <option value="knockout">Knockout</option>
-              </select>
-            </label>
-            <label className="toggle-setting"><input type="checkbox" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} /> ITEMS ON</label>
-            <div className="track-votes" aria-label="Track votes">
-              {(network.lobby.trackOptions ?? []).map((track) => <button key={track.id} type="button" className={(network.playerId !== null && network.lobby?.votes?.[network.playerId] === track.id) ? 'voted' : ''} onClick={() => client.voteTrack(track.id)}>{track.name}<small>{Object.values(network.lobby?.votes ?? {}).filter((vote) => vote === track.id).length}</small></button>)}
+            <div className="lobby-settings">
+              <div className="settings-heading"><span>RACE SETTINGS</span><small>{isHost ? 'HOST CONTROLS' : 'HOST SELECTS'}</small></div>
+              <label>TRACK
+                <select value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
+                  {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
+                </select>
+              </label>
+              <label>LAPS
+                <select value={settings.laps} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, laps: Number(event.target.value) as RaceSettings['laps'] })}>
+                  {[2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
+                </select>
+              </label>
+              <label>MODE
+                <select value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
+                  <option value="standard">Standard Race</option>
+                  <option value="knockout">Knockout</option>
+                </select>
+              </label>
+              <label className="toggle-setting"><input type="checkbox" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} /> ITEMS ON</label>
+              <div className="track-votes" aria-label="Track votes">
+                {(network.lobby.trackOptions ?? []).map((track) => <button key={track.id} type="button" className={(network.playerId !== null && network.lobby?.votes?.[network.playerId] === track.id) ? 'voted' : ''} onClick={() => client.voteTrack(track.id)}>{track.name}<small>{Object.values(network.lobby?.votes ?? {}).filter((vote) => vote === track.id).length}</small></button>)}
+              </div>
             </div>
           </div>
-
-          {isHost ? (
-            <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>
-              {canStart ? 'Start race' : 'Waiting for one more racer'} <span aria-hidden="true">→</span>
-            </button>
-          ) : <p className="waiting-message">Waiting for the host to start…</p>}
-          <button className="text-button" type="button" onClick={leave}>Leave room</button>
+          <div className="lobby-actions">
+            {isHost ? (
+              <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>
+                {canStart ? 'Start race' : 'Waiting for one more racer'} <span aria-hidden="true">→</span>
+              </button>
+            ) : <p className="waiting-message">Waiting for the host to start…</p>}
+            <button className="text-button" type="button" onClick={leave}>Leave room</button>
+          </div>
         </section>
       )}
 
@@ -264,7 +272,7 @@ function App() {
         </div>
       )}
 
-      {showControls && (phase === 'countdown' || phase === 'racing') && (
+      {showControls && (phase === 'lobby' || phase === 'countdown' || phase === 'racing') && (
         <section className="controls-overlay glass-panel" aria-label="Driving controls">
           <p className="panel-label">QUICK START</p>
           <h2>Find your line</h2>
@@ -322,7 +330,7 @@ function App() {
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
-      {(phase === 'countdown' || phase === 'racing') && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> ITEM</span><span><kbd>R</kbd> RESET</span><button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
+      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>R</kbd> RESET</span>{phase !== 'lobby' && <span><kbd>E</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
   )
 }

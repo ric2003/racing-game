@@ -224,10 +224,13 @@ export class RaceRoom {
     if (!TRACKS.some((track) => track.id === settings.trackId)) return 'That track is unavailable.'
     if (![2, 3, 5].includes(settings.laps) || !['standard', 'knockout'].includes(settings.mode)) return 'Race settings are invalid.'
     if (settings.mode === 'knockout' && this.players.size < 3) return 'Knockout needs at least three racers.'
+    const trackChanged = settings.trackId !== this.settings.trackId
     Object.assign(this.settings, copySettings(settings))
     this.track = getTrack(settings.trackId)
     this.resetItems()
+    if (trackChanged) this.resetWarmupPositions()
     this.broadcastLobby()
+    this.broadcastSnapshot()
     return null
   }
 
@@ -278,8 +281,9 @@ export class RaceRoom {
     const player = this.players.get(playerId)
     if (!player) return 'Join a room before driving.'
     if (seq <= player.lastReceivedSeq || seq - player.lastReceivedSeq > 10_000) return 'Input sequence is stale or invalid.'
-    if (this.phase !== 'racing') {
+    if (this.phase !== 'racing' && this.phase !== 'lobby') {
       player.lastReceivedSeq = seq
+      player.lastProcessedSeq = seq
       return null
     }
     if (player.inputQueue.length >= MAX_INPUT_QUEUE) return 'Input queue is full.'
@@ -292,7 +296,7 @@ export class RaceRoom {
   reset(playerId: string): string | null {
     const player = this.players.get(playerId)
     const now = this.now()
-    if (!player || this.phase !== 'racing') return 'Reset is available during a race.'
+    if (!player || (this.phase !== 'racing' && this.phase !== 'lobby')) return 'Reset is available while driving.'
     if (now - player.lastResetAt < 1_000) return 'Reset is cooling down.'
     const nearest = nearestTrackPoint(player.kart, this.track)
     player.kart.x = nearest.x
@@ -305,6 +309,7 @@ export class RaceRoom {
     player.lastProcessedSeq = player.lastReceivedSeq
     player.item.disabledUntil = null
     player.lastResetAt = now
+    this.broadcastSnapshot()
     return null
   }
 
@@ -373,8 +378,7 @@ export class RaceRoom {
       player.race = createRaceProgress()
       player.controls = { ...NEUTRAL_CONTROLS }
       player.inputQueue = []
-      player.lastReceivedSeq = -1
-      player.lastProcessedSeq = -1
+      player.lastProcessedSeq = player.lastReceivedSeq
       player.lastInputAt = this.now()
       player.lastResetAt = -Infinity
       player.item = createItemState()
@@ -394,6 +398,21 @@ export class RaceRoom {
     this.oilSlicks = []
   }
 
+  private resetWarmupPositions(): void {
+    for (const player of this.players.values()) {
+      const grid = this.track.startGrid[player.slot]
+      player.kart = { id: player.id, x: grid.x, z: grid.z, heading: grid.heading, vx: 0, vz: 0 }
+      player.controls = { ...NEUTRAL_CONTROLS }
+      player.inputQueue = []
+      player.lastProcessedSeq = player.lastReceivedSeq
+      player.lastResetAt = -Infinity
+      player.item = createItemState()
+      player.boostUntil = 0
+    }
+    this.events = []
+    this.hazardCooldowns.clear()
+  }
+
   private step(now: number): void {
     this.tickNumber += 1
     const previousPhase = this.phase
@@ -401,9 +420,55 @@ export class RaceRoom {
       this.phase = 'racing'
       for (const player of this.players.values()) beginRaceTiming(player.race, now)
     }
+    if (this.phase === 'lobby') this.stepWarmup(now)
     if (this.phase === 'racing') this.stepRace(now)
-    const isActive = this.phase === 'countdown' || this.phase === 'racing'
+    const isActive = this.phase === 'countdown' || this.phase === 'racing' || (this.phase === 'lobby' && this.warmupIsActive(now))
     if (this.phase !== previousPhase || (isActive && this.tickNumber % SNAPSHOT_EVERY_TICKS === 0)) this.broadcastSnapshot()
+  }
+
+  private stepWarmup(now: number): void {
+    const players = [...this.players.values()]
+    for (const player of players) {
+      this.applyPlayerInput(player, now, false)
+      const disabled = player.item.disabledUntil !== null && player.item.disabledUntil > now
+      const turbo = player.boostUntil > now
+      stepKart(
+        player.kart,
+        disabled ? NEUTRAL_CONTROLS : player.controls,
+        FIXED_DT,
+        turbo ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 } : undefined,
+        this.track,
+      )
+    }
+    resolveKartCollisions(players.map((player) => player.kart), this.track)
+    this.processHazards(players, now)
+  }
+
+  private warmupIsActive(now: number): boolean {
+    return [...this.players.values()].some((player) => (
+      player.inputQueue.length > 0
+      || player.controls.throttle !== 0
+      || player.controls.steer !== 0
+      || player.controls.brake !== 0
+      || Math.hypot(player.kart.vx, player.kart.vz) > 0.01
+      || player.boostUntil > now
+      || (player.item.disabledUntil ?? 0) > now
+    ))
+  }
+
+  private applyPlayerInput(player: RoomPlayer, now: number, allowItem: boolean): void {
+    const queued = player.inputQueue[0]
+    if (queued) {
+      player.controls = { throttle: queued.throttle, steer: queued.steer, brake: queued.brake }
+      if (allowItem && queued.useItem && queued.stepsRemaining === INPUT_STEPS_PER_SAMPLE) this.useItem(player, now)
+      queued.stepsRemaining -= 1
+      if (queued.stepsRemaining === 0) {
+        player.lastProcessedSeq = queued.seq
+        player.inputQueue.shift()
+      }
+    } else if (now - player.lastInputAt > INPUT_IDLE_MS) {
+      player.controls = { ...NEUTRAL_CONTROLS }
+    }
   }
 
   private stepRace(now: number): void {
@@ -413,18 +478,7 @@ export class RaceRoom {
     const beforeOrder = rankRace(players.map((player) => ({ ...player.race, id: player.id, name: player.name })), this.track).map(({ id }) => id)
 
     for (const player of activePlayers) {
-      const queued = player.inputQueue[0]
-      if (queued) {
-        player.controls = { throttle: queued.throttle, steer: queued.steer, brake: queued.brake }
-        if (queued.useItem && queued.stepsRemaining === INPUT_STEPS_PER_SAMPLE) this.useItem(player, now)
-        queued.stepsRemaining -= 1
-        if (queued.stepsRemaining === 0) {
-          player.lastProcessedSeq = queued.seq
-          player.inputQueue.shift()
-        }
-      } else if (now - player.lastInputAt > INPUT_IDLE_MS) {
-        player.controls = { ...NEUTRAL_CONTROLS }
-      }
+      this.applyPlayerInput(player, now, true)
       const disabled = player.item.disabledUntil !== null && player.item.disabledUntil > now
       const turbo = player.boostUntil > now
       stepKart(
@@ -689,7 +743,7 @@ export class RaceRoom {
       settings: copySettings(this.settings),
       karts,
       standings,
-      itemBoxes: this.itemBoxes.map((box) => ({ ...box })),
+      itemBoxes: this.phase === 'lobby' ? [] : this.itemBoxes.map((box) => ({ ...box })),
       hazards,
       oilSlicks: this.oilSlicks.map(({ id, x, z, expiresAt }) => ({ id, x, z, expiresAt })),
       events: [...this.events],

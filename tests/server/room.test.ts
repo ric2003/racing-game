@@ -41,6 +41,29 @@ function placeForCollision(room: RaceRoom, checkpointIndex: number): void {
 }
 
 describe('authoritative race room', () => {
+  it('allows a solo lobby warm-up and resets the kart before the race', () => {
+    const { room, advance } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', closedSocket())!
+    const start = { ...host.kart }
+
+    expect(room.setInput(host.id, 1, { throttle: 1, steer: 0, brake: 0 }, 0)).toBeNull()
+    advance()
+    advance()
+
+    expect(room.phase).toBe('lobby')
+    expect(host.lastProcessedSeq).toBe(1)
+    expect(Math.hypot(host.kart.x - start.x, host.kart.z - start.z)).toBeGreaterThan(0.001)
+    expect(host.race.lap).toBe(0)
+
+    room.addPlayer('b', 'Bravo', closedSocket())
+    expect(room.start(host.id)).toBeNull()
+    expect(host.kart.x).toBe(start.x)
+    expect(host.kart.z).toBe(start.z)
+    expect(host.kart.vx).toBe(0)
+    expect(host.kart.vz).toBe(0)
+    expect(host.lastProcessedSeq).toBe(host.lastReceivedSeq)
+  })
+
   it('consumes queued inputs for two steps and acknowledges only completed samples', () => {
     const { room, advance } = createRoom()
     const player = room.addPlayer('a', 'Alpha', closedSocket())!

@@ -15,6 +15,7 @@ const ITEM_INFO: Record<ItemType, { label: string; cue: string; symbol: string }
 }
 
 const NAME_PATTERN = /^[A-Za-z0-9 _-]{2,16}$/
+type CopyFeedback = 'code' | 'invite' | 'error' | null
 
 const EMPTY_NETWORK: NetworkState = {
   status: 'idle',
@@ -33,7 +34,7 @@ function App() {
   const [name, setName] = useState(() => localStorage.getItem('neon-apex-name') ?? '')
   const [roomCode, setRoomCode] = useState(() => new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '')
   const [joinMode, setJoinMode] = useState(() => Boolean(new URLSearchParams(window.location.search).get('room')))
-  const [copied, setCopied] = useState(false)
+  const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
   const [nameError, setNameError] = useState<string | null>(null)
   const [showControls, setShowControls] = useState(() => localStorage.getItem('neon-apex-controls-seen') !== '1')
   const [bindings, setBindings] = useState<KeyBindings>(() => loadKeyBindings())
@@ -79,21 +80,22 @@ function App() {
 
   const leave = () => {
     client.disconnect()
-    setCopied(false)
+    setCopyFeedback(null)
   }
 
   const copyCode = async () => {
     if (!network.roomCode) return
-    await navigator.clipboard.writeText(network.roomCode)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1_500)
+    showCopyFeedback(await copyText(network.roomCode) ? 'code' : 'error')
   }
 
   const copyInvite = async () => {
     if (!network.roomCode) return
-    await navigator.clipboard.writeText(`${window.location.origin}/?room=${network.roomCode}`)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1_500)
+    showCopyFeedback(await copyText(`${window.location.origin}/?room=${network.roomCode}`) ? 'invite' : 'error')
+  }
+
+  const showCopyFeedback = (feedback: CopyFeedback) => {
+    setCopyFeedback(feedback)
+    window.setTimeout(() => setCopyFeedback(null), 1_800)
   }
 
   const phase = network.snapshot?.phase ?? network.lobby?.phase ?? 'lobby'
@@ -185,22 +187,22 @@ function App() {
   return (
     <main className="race-app">
       {network.snapshot && <GameCanvas client={client} playerId={network.playerId} snapshot={network.snapshot} />}
-      <header className="topbar">
-        <a className="mini-brand" href="/" onClick={(event) => { event.preventDefault(); leave() }} aria-label="Leave race and return home">
+      <header className={`topbar ${phase === 'lobby' ? '' : 'topbar-racing'}`}>
+        {phase === 'lobby' && <a className="mini-brand" href="/" onClick={(event) => { event.preventDefault(); leave() }} aria-label="Leave race and return home">
           <span>NA</span> NEON APEX
-        </a>
+        </a>}
         <div className="room-chip">
           <span>ROOM</span>
           <strong>{network.roomCode}</strong>
-          <button type="button" onClick={copyCode} aria-label={copied ? 'Room code copied' : 'Copy room code'}>{copied ? 'COPIED' : 'COPY'}</button>
-          <button type="button" onClick={copyInvite} aria-label="Copy invite link">LINK</button>
-          <span className="sr-only" aria-live="polite">{copied ? 'Invite copied.' : ''}</span>
+          <button type="button" onClick={copyCode} aria-label={copyFeedback === 'code' ? 'Room code copied' : 'Copy room code'}>{copyFeedback === 'code' ? 'COPIED' : 'COPY'}</button>
+          <button type="button" onClick={copyInvite} aria-label={copyFeedback === 'invite' ? 'Invite link copied' : 'Copy invite link'}>{copyFeedback === 'invite' ? 'COPIED' : 'LINK'}</button>
+          {copyFeedback === 'error' && <span className="copy-status is-error">COPY FAILED</span>}
+          <span className="sr-only" aria-live="polite">{copyFeedback === 'code' ? 'Room code copied.' : copyFeedback === 'invite' ? 'Invite link copied.' : copyFeedback === 'error' ? 'Could not copy.' : ''}</span>
         </div>
-        <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>
+        {phase === 'lobby' && <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>}
         {network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
           <button className="reconnect-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
         )}
-        {phase !== 'lobby' && <button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>KEYS</button>}
       </header>
 
       {phase === 'lobby' && (
@@ -278,14 +280,13 @@ function App() {
         <>
           <section className="race-hud" aria-label="Race status">
             <div><span>LAP</span><strong>{Math.min(localKart.lap + 1, settings.laps)}<small>/{settings.laps}</small></strong></div>
-            <div><span>POSITION</span><strong>{(network.snapshot.standings.findIndex((standing) => standing.id === network.playerId) ?? -1) + 1}<small>/{network.snapshot.standings.length}</small></strong></div>
             <div><span>TIME</span><strong className="hud-time">{formatTime(network.snapshot.standings.find((standing) => standing.id === network.playerId)?.lapTime ?? null)}</strong></div>
-            <div className={`item-slot ${heldItem ? `has-item item-${heldItem}` : ''}`}>
-              <span>{heldItem ? 'ITEM READY' : 'ITEM'}</span>
-              <strong>{heldItemInfo ? <><i aria-hidden="true">{heldItemInfo.symbol}</i>{heldItemInfo.label}</> : '—'}</strong>
-              <small className="item-cue">{heldItemInfo?.cue ?? 'Drive through a blue box'}</small>
-              <small className="item-key">PRESS <kbd>E</kbd> TO USE</small>
-            </div>
+          </section>
+          <section className={`item-hud ${heldItem ? `has-item item-${heldItem}` : ''}`} aria-label="Held item">
+            <span>{heldItem ? 'ITEM READY' : 'ITEM'}</span>
+            <strong>{heldItemInfo ? <><i aria-hidden="true">{heldItemInfo.symbol}</i>{heldItemInfo.label}</> : '—'}</strong>
+            <small className="item-cue">{heldItemInfo?.cue ?? 'Drive through a blue box'}</small>
+            <small className="item-key">PRESS <kbd>E</kbd> TO USE</small>
           </section>
           <aside className="standings glass-panel" aria-label="Live standings">
             <span>STANDINGS</span>
@@ -321,9 +322,37 @@ function App() {
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
-      <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> ITEM</span><span><kbd>R</kbd> RESET</span></footer>
+      {(phase === 'countdown' || phase === 'racing') && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>E</kbd> ITEM</span><span><kbd>R</kbd> RESET</span><button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
   )
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // Plain HTTP network pages cannot use the modern clipboard API.
+  }
+
+  const field = document.createElement('textarea')
+  field.value = text
+  field.setAttribute('readonly', '')
+  field.style.position = 'fixed'
+  field.style.left = '-9999px'
+  field.style.opacity = '0'
+  document.body.append(field)
+  field.select()
+  field.setSelectionRange(0, field.value.length)
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    field.remove()
+  }
 }
 
 function formatTime(milliseconds: number | null): string {

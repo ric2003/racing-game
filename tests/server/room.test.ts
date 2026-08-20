@@ -3,8 +3,8 @@ import WebSocket from 'ws'
 import { RaceRoom } from '../../server/room.js'
 import { MAX_SOCKET_BUFFER_BYTES, sendServerMessage } from '../../server/socket.js'
 import { LocalPredictor } from '../../src/game/prediction.js'
-import type { KartSnapshot, PendingInput } from '../../src/shared/protocol.js'
-import { CHECKPOINTS, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
+import type { KartSnapshot, PendingInput, ServerMessage } from '../../src/shared/protocol.js'
+import { CHECKPOINTS, DEFAULT_TRACK, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
 
 function closedSocket(): WebSocket {
   return { readyState: WebSocket.CLOSED } as WebSocket
@@ -17,6 +17,12 @@ function openSocket(messages: string[]): WebSocket {
     send: (data: string) => messages.push(data),
     terminate: vi.fn(),
   } as unknown as WebSocket
+}
+
+function snapshots(messages: string[]): Array<Extract<ServerMessage, { type: 'snapshot' }>> {
+  return messages
+    .map((message) => JSON.parse(message) as ServerMessage)
+    .filter((message): message is Extract<ServerMessage, { type: 'snapshot' }> => message.type === 'snapshot')
 }
 
 function createRoom() {
@@ -41,6 +47,86 @@ function placeForCollision(room: RaceRoom, checkpointIndex: number): void {
 }
 
 describe('authoritative race room', () => {
+  it('gives a road boost twice the normal acceleration for its short burst', () => {
+    const { room, advance } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    const pad = DEFAULT_TRACK.hazards.find((hazard) => hazard.type === 'boost-pad')!
+    const projection = nearestTrackPoint(pad)
+    player.kart.x = pad.x
+    player.kart.z = pad.z
+    player.kart.heading = Math.atan2(projection.tangentX, projection.tangentZ)
+    room.phase = 'racing'
+    expect(room.setInput(player.id, 1, { throttle: 1, steer: 0, brake: 0 }, 0)).toBeNull()
+
+    advance()
+    const speedAfterNormalStep = Math.hypot(player.kart.vx, player.kart.vz)
+    expect(player.boostUntil).toBeGreaterThan(0)
+    advance()
+    const speedAfterBoostedStep = Math.hypot(player.kart.vx, player.kart.vz)
+
+    expect((speedAfterBoostedStep - speedAfterNormalStep) / speedAfterNormalStep).toBeGreaterThan(1.8)
+  })
+
+  it('keeps moving barriers visible and moves their collision position across the road', () => {
+    const messages: string[] = []
+    const { room, advance } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', openSocket(messages))!
+    room.phase = 'racing'
+    messages.length = 0
+
+    for (let index = 0; index < 240; index += 1) advance()
+    const barrierStates = snapshots(messages)
+      .map((snapshot) => snapshot.hazards?.find((hazard) => hazard.type === 'moving-barrier'))
+      .filter((hazard) => hazard !== undefined)
+
+    expect(barrierStates.length).toBeGreaterThan(20)
+    expect(barrierStates.every((hazard) => hazard.active)).toBe(true)
+    const xs = barrierStates.map((hazard) => hazard.x)
+    const zs = barrierStates.map((hazard) => hazard.z)
+    expect(Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))).toBeGreaterThan(6)
+
+    const latest = barrierStates.at(-1)!
+    const projection = nearestTrackPoint(latest)
+    player.kart.x = latest.x
+    player.kart.z = latest.z
+    player.kart.heading = Math.atan2(projection.tangentX, projection.tangentZ)
+    player.kart.vx = projection.tangentX * 20
+    player.kart.vz = projection.tangentZ * 20
+    advance()
+    expect(player.item.disabledUntil).not.toBeNull()
+    expect(Math.hypot(player.kart.vx, player.kart.vz)).toBeLessThan(10)
+    advance()
+    advance()
+    const barrierHit = snapshots(messages).at(-1)?.events?.find((event) => event.kind === 'spin' && event.targetId === player.id)
+    expect(barrierHit?.item).toBeUndefined()
+  })
+
+  it('lets a shielded kart drive through a moving barrier without losing speed', () => {
+    const messages: string[] = []
+    const { room, advance } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', openSocket(messages))!
+    room.phase = 'racing'
+
+    for (let index = 0; index < 240; index += 1) advance()
+    const barrier = snapshots(messages)
+      .at(-1)?.hazards?.find((hazard) => hazard.type === 'moving-barrier')
+    expect(barrier).toBeDefined()
+
+    const projection = nearestTrackPoint(barrier!)
+    player.kart.x = barrier!.x
+    player.kart.z = barrier!.z
+    player.kart.heading = Math.atan2(projection.tangentX, projection.tangentZ)
+    player.kart.vx = projection.tangentX * 20
+    player.kart.vz = projection.tangentZ * 20
+    player.item.shieldedUntil = 10_000
+
+    advance()
+
+    expect(player.item.shieldedUntil).toBeNull()
+    expect(player.item.disabledUntil).toBeNull()
+    expect(Math.hypot(player.kart.vx, player.kart.vz)).toBeGreaterThan(15)
+  })
+
   it('allows a solo lobby warm-up and resets the kart before the race', () => {
     const { room, advance } = createRoom()
     const host = room.addPlayer('a', 'Alpha', closedSocket())!
@@ -83,6 +169,20 @@ describe('authoritative race room', () => {
     expect(player.lastProcessedSeq).toBe(2)
     const slowedSpeed = player.kart.vx * Math.sin(player.kart.heading) + player.kart.vz * Math.cos(player.kart.heading)
     expect(slowedSpeed).toBeLessThan(forwardSpeed)
+  })
+
+  it('acknowledges and discards input from a racer who already finished', () => {
+    const { room } = createRoom()
+    const winner = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.phase = 'racing'
+    winner.race.finishedAt = 100
+
+    for (let seq = 1; seq <= 40; seq += 1) {
+      expect(room.setInput(winner.id, seq, { throttle: 1, steer: 0, brake: 0 }, 100)).toBeNull()
+    }
+
+    expect(winner.inputQueue).toHaveLength(0)
+    expect(winner.lastProcessedSeq).toBe(40)
   })
 
   it('resolves discarded input acknowledgments when resetting', () => {

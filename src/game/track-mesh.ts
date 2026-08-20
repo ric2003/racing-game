@@ -249,18 +249,28 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   return {
     group,
     update: (elapsedSeconds, serverTime, itemBoxes, hazards, oilSlicks) => {
-      itemState.clear()
-      for (const item of itemBoxes ?? []) itemState.set(item.id, item)
+      if (itemBoxes !== undefined) {
+        itemState.clear()
+        for (const item of itemBoxes) itemState.set(item.id, item)
+        itemVisuals.forEach((visual, index) => {
+          const state = itemState.get(index)
+          visual.visible = state !== undefined && state.availableAt <= serverTime
+        })
+      }
       itemVisuals.forEach((visual, index) => {
-        const state = itemState.get(index)
-        visual.visible = state === undefined || state.availableAt <= serverTime
         visual.position.y = 1.25 + Math.sin(elapsedSeconds * 2.2 + index * 0.8) * 0.18
         visual.rotation.y = elapsedSeconds * 1.25 + index * 0.7
         visual.children[1].rotation.x = elapsedSeconds * 1.8
       })
-      hazardState.clear()
-      for (const hazard of hazards ?? []) hazardState.set(hazard.id, hazard)
-      for (const [id, visual] of hazardVisuals) visual.visible = hazardState.get(id)?.active ?? true
+      if (hazards !== undefined) {
+        hazardState.clear()
+        for (const hazard of hazards) hazardState.set(hazard.id, hazard)
+        for (const [id, visual] of hazardVisuals) {
+          const state = hazardState.get(id)
+          visual.visible = true
+          if (state) visual.position.set(state.x, visual.position.y, state.z)
+        }
+      }
 
       activeSlicks.clear()
       for (const slick of oilSlicks ?? []) activeSlicks.add(slick.id)

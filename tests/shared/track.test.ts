@@ -157,4 +157,42 @@ describe('technical track geometry', () => {
       for (const hazard of track.hazards) expect(nearestTrackPoint(hazard, track).distance).toBeLessThanOrEqual(legalTrackRadius())
     }
   })
+
+  it('keeps a collected item box hidden until the server marks it available', () => {
+    const track = TRACKS[0]
+    const visual = createTrackMesh(track)
+    try {
+      const itemBoxes = track.itemBoxes.map((point, id) => ({ id, ...point, availableAt: id === 0 ? 6_000 : 0 }))
+      const collected = visual.group.getObjectByName('item-box-0')!
+
+      visual.update(1, 100, itemBoxes, [], [])
+      expect(collected.visible).toBe(false)
+
+      visual.update(1.1, 150, undefined, [], [])
+      expect(collected.visible).toBe(false)
+
+      visual.update(1.2, 200, [], [], [])
+      expect(track.itemBoxes.every((_, id) => visual.group.getObjectByName(`item-box-${id}`)?.visible === false)).toBe(true)
+    } finally {
+      visual.dispose()
+    }
+  })
+
+  it('keeps a moving barrier visible and follows its authoritative position', () => {
+    const track = TRACKS[0]
+    const visual = createTrackMesh(track)
+    try {
+      const barrier = track.hazards.find((hazard) => hazard.type === 'moving-barrier')!
+      const rendered = visual.group.getObjectByName(`hazard-${barrier.id}`)!
+      const snapshot = { id: barrier.id, type: barrier.type, x: barrier.x + 3, z: barrier.z - 2, active: false }
+
+      visual.update(1, 100, [], [snapshot], [])
+
+      expect(rendered.visible).toBe(true)
+      expect(rendered.position.x).toBeCloseTo(snapshot.x)
+      expect(rendered.position.z).toBeCloseTo(snapshot.z)
+    } finally {
+      visual.dispose()
+    }
+  })
 })

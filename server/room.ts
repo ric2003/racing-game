@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import type WebSocket from 'ws'
 import {
+  BOOST_ACCELERATION_MULTIPLIER,
   BOOST_DURATION_MS,
+  BOOST_MAX_SPEED_MULTIPLIER,
   COUNTDOWN_MS,
   DEFAULT_RACE_SETTINGS,
   FIXED_DT,
@@ -11,6 +13,7 @@ import {
   MAX_CATCH_UP_STEPS,
   MAX_EVENTS_PER_SNAPSHOT,
   MAX_PLAYERS,
+  MOVING_BARRIER_TRAVEL,
   OIL_DURATION_MS,
   RESUME_WINDOW_MS,
   SHIELD_DURATION_MS,
@@ -45,6 +48,8 @@ import { sendServerMessage } from './socket.js'
 
 const COLORS = [0xff5d73, 0x57d9ff, 0xffd166, 0x9cff57]
 const MAX_INPUT_QUEUE = 30
+const BARRIER_SPEED_RETENTION = 0.28
+const BARRIER_IMPACT_TURN = 0.5
 
 interface QueuedInput extends Controls {
   seq: number
@@ -281,7 +286,11 @@ export class RaceRoom {
     const player = this.players.get(playerId)
     if (!player) return 'Join a room before driving.'
     if (seq <= player.lastReceivedSeq || seq - player.lastReceivedSeq > 10_000) return 'Input sequence is stale or invalid.'
-    if (this.phase !== 'racing' && this.phase !== 'lobby') {
+    const canDrive = this.phase === 'lobby'
+      || (this.phase === 'racing' && player.race.finishedAt === null && !player.race.eliminated)
+    if (!canDrive) {
+      player.controls = { ...NEUTRAL_CONTROLS }
+      player.inputQueue = []
       player.lastReceivedSeq = seq
       player.lastProcessedSeq = seq
       return null
@@ -436,7 +445,7 @@ export class RaceRoom {
         player.kart,
         disabled ? NEUTRAL_CONTROLS : player.controls,
         FIXED_DT,
-        turbo ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 } : undefined,
+        turbo ? { accelerationMultiplier: BOOST_ACCELERATION_MULTIPLIER, maxSpeedMultiplier: BOOST_MAX_SPEED_MULTIPLIER } : undefined,
         this.track,
       )
     }
@@ -485,7 +494,7 @@ export class RaceRoom {
         player.kart,
         disabled ? NEUTRAL_CONTROLS : player.controls,
         FIXED_DT,
-        turbo ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 } : undefined,
+        turbo ? { accelerationMultiplier: BOOST_ACCELERATION_MULTIPLIER, maxSpeedMultiplier: BOOST_MAX_SPEED_MULTIPLIER } : undefined,
         this.track,
       )
     }
@@ -613,10 +622,12 @@ export class RaceRoom {
     })
   }
 
-  private applySpin(target: RoomPlayer, source: RoomPlayer | null, now: number, item: ItemType): void {
+  private applySpin(target: RoomPlayer, source: RoomPlayer | null, now: number, item?: ItemType): void {
     if (target.item.shieldedUntil !== null && target.item.shieldedUntil > now) {
       target.item.shieldedUntil = null
-      this.emit({ kind: 'item-hit', playerId: source?.id ?? target.id, targetId: target.id, item, at: now })
+      this.emit(item
+        ? { kind: 'item-hit', playerId: source?.id ?? target.id, targetId: target.id, item, at: now }
+        : { kind: 'item-hit', playerId: source?.id ?? target.id, targetId: target.id, at: now })
       return
     }
     if (target.item.immuneUntil !== null && target.item.immuneUntil > now) return
@@ -624,15 +635,16 @@ export class RaceRoom {
     target.item.immuneUntil = now + SPIN_IMMUNITY_MS
     target.stats.spins += 1
     if (source) source.stats.itemHits += 1
-    this.emit({ kind: 'spin', playerId: source?.id ?? target.id, targetId: target.id, item, at: now })
+    this.emit(item
+      ? { kind: 'spin', playerId: source?.id ?? target.id, targetId: target.id, item, at: now }
+      : { kind: 'spin', playerId: source?.id ?? target.id, targetId: target.id, at: now })
   }
 
   private processHazards(players: RoomPlayer[], now: number): void {
     for (const hazard of this.track.hazards) {
-      const active = this.hazardActive(hazard, now)
-      if (!active) continue
+      const position = this.hazardPosition(hazard, now)
       for (const player of players) {
-        if (distanceSquared(player.kart, hazard) > hazard.radius * hazard.radius) continue
+        if (distanceSquared(player.kart, position) > hazard.radius * hazard.radius) continue
         const cooldown = this.hazardCooldowns.get(`${hazard.id}:${player.id}`) ?? 0
         if (cooldown > now) continue
         this.hazardCooldowns.set(`${hazard.id}:${player.id}`, now + 1_250)
@@ -640,16 +652,27 @@ export class RaceRoom {
           player.boostUntil = Math.max(player.boostUntil, now + BOOST_DURATION_MS)
           this.emit({ kind: 'boost', playerId: player.id, at: now })
         } else {
-          this.applySpin(player, null, now, 'oil-slick')
+          const shielded = player.item.shieldedUntil !== null && player.item.shieldedUntil > now
+          this.applySpin(player, null, now)
+          if (!shielded) {
+            player.kart.vx *= BARRIER_SPEED_RETENTION
+            player.kart.vz *= BARRIER_SPEED_RETENTION
+            player.kart.heading += stableNumber(`${hazard.id}:${player.id}`) % 2 === 0 ? BARRIER_IMPACT_TURN : -BARRIER_IMPACT_TURN
+          }
         }
       }
     }
   }
 
-  private hazardActive(hazard: HazardDefinition, now: number): boolean {
-    if (hazard.type !== 'moving-barrier' || !hazard.periodMs) return true
+  private hazardPosition(hazard: HazardDefinition, now: number): { x: number; z: number } {
+    if (hazard.type !== 'moving-barrier' || !hazard.periodMs) return hazard
+    const projection = nearestTrackPoint(hazard, this.track)
     const phase = ((now % hazard.periodMs) / hazard.periodMs + (hazard.phase ?? 0)) % 1
-    return phase < 0.52
+    const lateralOffset = Math.sin(phase * Math.PI * 2) * MOVING_BARRIER_TRAVEL
+    return {
+      x: projection.x + projection.tangentZ * lateralOffset,
+      z: projection.z - projection.tangentX * lateralOffset,
+    }
   }
 
   private emit(event: Omit<RaceEvent, 'id'>): void {
@@ -732,7 +755,7 @@ export class RaceRoom {
         stats: { ...player.stats },
       }
     })
-    const hazards = this.track.hazards.map((hazard) => ({ id: hazard.id, type: hazard.type, x: hazard.x, z: hazard.z, active: this.hazardActive(hazard, serverTime) }))
+    const hazards = this.track.hazards.map((hazard) => ({ id: hazard.id, type: hazard.type, ...this.hazardPosition(hazard, serverTime), active: true }))
     this.sendAll({
       type: 'snapshot',
       tick: this.tickNumber,

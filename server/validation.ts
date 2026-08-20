@@ -89,7 +89,11 @@ export function parseClientMessage(payload: string | Buffer): ParseResult {
 
 export function isAllowedOrigin(origin: string | undefined, configured = process.env.ALLOWED_ORIGINS): boolean {
   if (!origin) return true
-  if (configured) return configured.split(',').map((item) => item.trim()).includes(origin)
+  if (configured) {
+    const allowedOrigins = configured.split(',').map((item) => item.trim())
+    if (allowedOrigins.includes('*')) return true
+    return allowedOrigins.includes(origin)
+  }
   try {
     const url = new URL(origin)
     return (url.hostname === 'localhost' || url.hostname === '127.0.0.1') && (url.protocol === 'http:' || url.protocol === 'https:')

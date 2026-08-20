@@ -200,7 +200,7 @@ function App() {
           <span className="sr-only" aria-live="polite">{copyFeedback === 'code' ? 'Room code copied.' : copyFeedback === 'invite' ? 'Invite link copied.' : copyFeedback === 'error' ? 'Could not copy.' : ''}</span>
         </div>
         {phase === 'lobby' && <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>}
-        {network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
+        {phase !== 'finished' && network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
           <button className="reconnect-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
         )}
       </header>
@@ -326,7 +326,7 @@ function App() {
         </section>
       )}
 
-      {network.error && <div className="network-error" role="alert">{network.error}</div>}
+      {phase !== 'finished' && network.error && <div className="network-error" role="alert">{network.error}</div>}
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}

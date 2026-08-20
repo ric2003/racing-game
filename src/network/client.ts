@@ -137,7 +137,12 @@ export class GameClient {
     socket.onclose = () => {
       if (socket !== this.socket) return
       this.socket = null
-      this.setState({ ...this.state, status: 'disconnected', error: this.state.error ?? 'Connection closed. Return to the lobby to race again.' })
+      const raceFinished = this.state.snapshot?.phase === 'finished'
+      this.setState({
+        ...this.state,
+        status: 'disconnected',
+        error: raceFinished ? null : this.state.error ?? 'Connection closed. Return to the lobby to race again.',
+      })
     }
   }
 

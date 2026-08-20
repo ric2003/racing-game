@@ -1,4 +1,9 @@
-import { FIXED_DT, INPUT_STEPS_PER_SAMPLE } from '../shared/constants.js'
+import {
+  BOOST_ACCELERATION_MULTIPLIER,
+  BOOST_MAX_SPEED_MULTIPLIER,
+  FIXED_DT,
+  INPUT_STEPS_PER_SAMPLE,
+} from '../shared/constants.js'
 import { NEUTRAL_CONTROLS, type KartSnapshot, type PendingInput } from '../shared/protocol.js'
 import { cloneKart, stepKart, type KartState, type StepModifiers } from '../shared/simulation.js'
 import { DEFAULT_TRACK, type TrackDefinition } from '../shared/track.js'
@@ -116,7 +121,7 @@ export class LocalPredictor {
 
   private step(kart: KartState, controls: PendingInput, delta: number, at: number): void {
     const modifiers: StepModifiers = at < this.boostedUntil
-      ? { accelerationMultiplier: 1.3, maxSpeedMultiplier: 1.15 }
+      ? { accelerationMultiplier: BOOST_ACCELERATION_MULTIPLIER, maxSpeedMultiplier: BOOST_MAX_SPEED_MULTIPLIER }
       : {}
     stepKart(kart, at < this.disabledUntil ? NEUTRAL_CONTROLS : controls, delta, modifiers, this.track)
   }

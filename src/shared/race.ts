@@ -98,8 +98,14 @@ export function applyFinishPlaces(entries: RaceEntry[]): void {
   })
 }
 
+const checkpointProgressCache = new WeakMap<TrackDefinition, number[]>()
+
 function totalRaceProgress(entry: RaceEntry, track: TrackDefinition): number {
-  const checkpointProgress = track.checkpoints.map((checkpoint) => nearestTrackPoint(checkpoint, track).progress)
+  let checkpointProgress = checkpointProgressCache.get(track)
+  if (!checkpointProgress) {
+    checkpointProgress = track.checkpoints.map((checkpoint) => nearestTrackPoint(checkpoint, track).progress)
+    checkpointProgressCache.set(track, checkpointProgress)
+  }
   const segmentCount = track.checkpoints.length
   const stage = entry.nextCheckpoint === 0 ? segmentCount - 1 : entry.nextCheckpoint - 1
   const segmentStart = checkpointProgress[stage]

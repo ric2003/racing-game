@@ -1,3 +1,4 @@
+import { LONG_LAYOUTS } from './long-layouts.js'
 import { KART_RADIUS, TRACK_WIDTH } from './constants.js'
 
 export interface Point2 {
@@ -40,6 +41,7 @@ export interface TrackDefinition {
   startGrid: StartPosition[]
   itemBoxes: Point2[]
   hazards: HazardDefinition[]
+  theme?: 'forest' | 'harbor' | 'desert'
 }
 
 const TRACK_ANCHORS: Point2[] = [
@@ -64,8 +66,8 @@ const SAMPLES_PER_ANCHOR = 10
 const POINT_COUNT = TRACK_ANCHORS.length * SAMPLES_PER_ANCHOR
 const CHECKPOINT_COUNT = 8
 
-function anchor(index: number): Point2 {
-  return TRACK_ANCHORS[(index + TRACK_ANCHORS.length) % TRACK_ANCHORS.length]
+function anchor(index: number, anchors: Point2[]): Point2 {
+  return anchors[(index + anchors.length) % anchors.length]
 }
 
 function catmullRom(value0: number, value1: number, value2: number, value3: number, amount: number): number {
@@ -79,14 +81,14 @@ function catmullRom(value0: number, value1: number, value2: number, value3: numb
   )
 }
 
-function sampleTrack(amount: number): Point2 {
-  const scaled = amount * TRACK_ANCHORS.length
-  const index = Math.floor(scaled) % TRACK_ANCHORS.length
+function sampleTrack(amount: number, anchors = TRACK_ANCHORS): Point2 {
+  const scaled = amount * anchors.length
+  const index = Math.floor(scaled) % anchors.length
   const local = scaled - Math.floor(scaled)
-  const previous = anchor(index - 1)
-  const current = anchor(index)
-  const next = anchor(index + 1)
-  const following = anchor(index + 2)
+  const previous = anchor(index - 1, anchors)
+  const current = anchor(index, anchors)
+  const next = anchor(index + 1, anchors)
+  const following = anchor(index + 2, anchors)
   return {
     x: catmullRom(previous.x, current.x, next.x, following.x, local),
     z: catmullRom(previous.z, current.z, next.z, following.z, local),
@@ -98,9 +100,9 @@ const CLASSIC_POINTS: Point2[] = Array.from(
   (_, index) => sampleTrack(index / POINT_COUNT),
 )
 
-function buildCheckpoints(points: Point2[]): Checkpoint[] {
-  return Array.from({ length: CHECKPOINT_COUNT }, (_, index) => {
-    const trackIndex = Math.floor(index * points.length / CHECKPOINT_COUNT)
+function buildCheckpoints(points: Point2[], count = CHECKPOINT_COUNT): Checkpoint[] {
+  return Array.from({ length: count }, (_, index) => {
+    const trackIndex = Math.floor(index * points.length / count)
     const point = points[trackIndex]
     const next = points[(trackIndex + 1) % points.length]
     const length = Math.max(0.0001, Math.hypot(next.x - point.x, next.z - point.z))
@@ -147,9 +149,9 @@ function pointAtProgress(points: Point2[], progress: number, lateralOffset = 0):
   }
 }
 
-function buildTrack(id: string, name: string, points: Point2[], hazardPlacements: HazardPlacement[] = []): TrackDefinition {
-  const checkpoints = buildCheckpoints(points)
-  const itemBoxes = [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94]
+function buildTrack(id: string, name: string, points: Point2[], hazardPlacements: HazardPlacement[] = [], theme?: TrackDefinition['theme']): TrackDefinition {
+  const checkpoints = buildCheckpoints(points, theme ? 64 : CHECKPOINT_COUNT)
+  const itemBoxes = (theme ? Array.from({ length: 64 }, (_, index) => (index + 0.5) / 64) : [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94])
     .map((progress, index) => pointAtProgress(points, progress, index % 2 === 0 ? -3.1 : 3.1))
   const hazards = hazardPlacements.map(({ progress, lateralOffset = 0, ...hazard }) => ({
     ...hazard,
@@ -164,6 +166,7 @@ function buildTrack(id: string, name: string, points: Point2[], hazardPlacements
     startGrid: buildStartGrid(checkpoints),
     itemBoxes,
     hazards,
+    theme,
   }
 }
 
@@ -177,6 +180,36 @@ const CLASSIC_TRACK = buildTrack('neon-classic', 'Neon Classic', CLASSIC_POINTS,
 const HARBOR_POINTS = CLASSIC_POINTS.map(({ x, z }) => ({ x: x * 1.08 + 8, z: z * 0.86 - 6 }))
 const SWITCHBACK_POINTS = CLASSIC_POINTS.map(({ x, z }) => ({ x: z * 0.9 - 3, z: -x * 0.82 + 8 }))
 
+function circuitLength(points: Point2[]): number {
+  return points.reduce((total, point, index) => {
+    const next = points[(index + 1) % points.length]
+    return total + Math.hypot(next.x - point.x, next.z - point.z)
+  }, 0)
+}
+
+function buildLongCircuit(anchors: Point2[]): Point2[] {
+  const samples = Array.from({ length: anchors.length * 100 }, (_, index) => sampleTrack(index / (anchors.length * 100), anchors))
+  const targetLength = circuitLength(CLASSIC_POINTS) * 10
+  const scale = targetLength / circuitLength(samples)
+  const scaled = samples.map(({ x, z }) => ({ x: x * scale, z: z * scale }))
+  const cumulative = [0]
+  for (let index = 0; index < scaled.length; index += 1) {
+    const next = scaled[(index + 1) % scaled.length]
+    cumulative.push(cumulative[index] + Math.hypot(next.x - scaled[index].x, next.z - scaled[index].z))
+  }
+  // Uniform distance spacing preserves corner detail and regular checkpoint intervals.
+  const count = Math.ceil(targetLength / 3)
+  let segment = 0
+  return Array.from({ length: count }, (_, index) => {
+    const distance = index * targetLength / count
+    while (segment < scaled.length - 1 && cumulative[segment + 1] < distance) segment += 1
+    const amount = (distance - cumulative[segment]) / (cumulative[segment + 1] - cumulative[segment])
+    const start = scaled[segment]
+    const end = scaled[(segment + 1) % scaled.length]
+    return { x: start.x + (end.x - start.x) * amount, z: start.z + (end.z - start.z) * amount }
+  })
+}
+
 export const TRACKS: TrackDefinition[] = [
   CLASSIC_TRACK,
   buildTrack('neon-harbor', 'Neon Harbor', HARBOR_POINTS, [
@@ -189,6 +222,19 @@ export const TRACKS: TrackDefinition[] = [
   ]),
 ]
 
+for (const layout of LONG_LAYOUTS) {
+  const hazards: HazardPlacement[] = Array.from({ length: 16 }, (_, index) => ({
+    id: `${layout.id}-boost-${index}`, type: 'boost-pad', radius: 2.6,
+    progress: (index + 0.3) / 16,
+  }))
+  for (let index = 0; index < 8; index += 1) hazards.push({
+    id: `${layout.id}-barrier-${index}`, type: 'moving-barrier', radius: 1.9,
+    progress: (index + 0.4) / 8, lateralOffset: index % 2 ? -2.8 : 2.8,
+    periodMs: 3_600 + index * 100, phase: index / 8,
+  })
+  TRACKS.push(buildTrack(layout.id, layout.name, buildLongCircuit(layout.anchors), hazards, layout.theme))
+}
+
 export const TRACK_DEFINITIONS = TRACKS
 
 export const DEFAULT_TRACK = CLASSIC_TRACK
@@ -200,7 +246,9 @@ export function getTrack(trackId: string | undefined): TrackDefinition {
   return TRACKS.find((track) => track.id === trackId) ?? DEFAULT_TRACK
 }
 
-type TrackMetrics = { lengths: number[]; total: number; cumulative: number[] }
+export interface TrackBounds { minX: number; maxX: number; minZ: number; maxZ: number }
+type SegmentBlock = TrackBounds & { start: number; end: number }
+type TrackMetrics = { lengths: number[]; total: number; cumulative: number[]; blocks: SegmentBlock[]; bounds: TrackBounds }
 const metricsCache = new WeakMap<TrackDefinition, TrackMetrics>()
 
 function trackMetrics(track: TrackDefinition): TrackMetrics {
@@ -215,38 +263,67 @@ function trackMetrics(track: TrackDefinition): TrackMetrics {
     cumulative.push(sum)
     return sum + length
   }, 0)
-  const metrics = { lengths, total, cumulative }
+  const blocks: SegmentBlock[] = []
+  for (let start = 0; start < track.points.length; start += 32) {
+    const end = Math.min(track.points.length, start + 32)
+    const points = track.points.slice(start, end)
+    points.push(track.points[end % track.points.length])
+    blocks.push({ start, end, ...boundsOf(points) })
+  }
+  const metrics = { lengths, total, cumulative, blocks, bounds: boundsOf(track.points) }
   metricsCache.set(track, metrics)
   return metrics
 }
 
+function boundsOf(points: Point2[]): TrackBounds {
+  return points.reduce((bounds, point) => ({
+    minX: Math.min(bounds.minX, point.x), maxX: Math.max(bounds.maxX, point.x),
+    minZ: Math.min(bounds.minZ, point.z), maxZ: Math.max(bounds.maxZ, point.z),
+  }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity })
+}
+
+export function getTrackBounds(track: TrackDefinition): TrackBounds { return trackMetrics(track).bounds }
+export function getTrackLength(track: TrackDefinition): number { return trackMetrics(track).total }
+export function finishGraceMs(track: TrackDefinition): number {
+  return Math.max(20_000, Math.round(getTrackLength(track) / getTrackLength(DEFAULT_TRACK)) * 20_000)
+}
+
 export function nearestTrackPoint(point: Point2, track: TrackDefinition = DEFAULT_TRACK): TrackProjection {
-  const { lengths, total, cumulative } = trackMetrics(track)
-  let best: TrackProjection | null = null
-  for (let index = 0; index < track.points.length; index += 1) {
-    const start = track.points[index]
-    const end = track.points[(index + 1) % track.points.length]
-    const dx = end.x - start.x
-    const dz = end.z - start.z
-    const lengthSquared = dx * dx + dz * dz
-    const amount = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSquared))
-    const x = start.x + dx * amount
-    const z = start.z + dz * amount
-    const distance = Math.hypot(point.x - x, point.z - z)
-    if (!best || distance < best.distance) {
-      const length = lengths[index]
-      best = {
-        x,
-        z,
-        distance,
-        segmentIndex: index,
-        tangentX: dx / length,
-        tangentZ: dz / length,
-        progress: (cumulative[index] + length * amount) / total,
+  const { lengths, total, cumulative, blocks } = trackMetrics(track)
+  let bestDistanceSquared = Infinity
+  let bestIndex = 0
+  let bestAmount = 0
+  let bestX = 0
+  let bestZ = 0
+  for (const block of blocks) {
+    const gapX = Math.max(block.minX - point.x, 0, point.x - block.maxX)
+    const gapZ = Math.max(block.minZ - point.z, 0, point.z - block.maxZ)
+    if (gapX * gapX + gapZ * gapZ > bestDistanceSquared) continue
+    for (let index = block.start; index < block.end; index += 1) {
+      const start = track.points[index]
+      const end = track.points[(index + 1) % track.points.length]
+      const dx = end.x - start.x
+      const dz = end.z - start.z
+      const amount = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.z - start.z) * dz) / (dx * dx + dz * dz)))
+      const x = start.x + dx * amount
+      const z = start.z + dz * amount
+      const distanceSquared = (point.x - x) ** 2 + (point.z - z) ** 2
+      if (distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared
+        bestIndex = index
+        bestAmount = amount
+        bestX = x
+        bestZ = z
       }
     }
   }
-  return best!
+  const start = track.points[bestIndex]
+  const end = track.points[(bestIndex + 1) % track.points.length]
+  return {
+    x: bestX, z: bestZ, distance: Math.sqrt(bestDistanceSquared), segmentIndex: bestIndex,
+    tangentX: (end.x - start.x) / lengths[bestIndex], tangentZ: (end.z - start.z) / lengths[bestIndex],
+    progress: (cumulative[bestIndex] + lengths[bestIndex] * bestAmount) / total,
+  }
 }
 
 export function crossedCheckpoint(previous: Point2, current: Point2, checkpoint: Checkpoint, trackWidth = TRACK_WIDTH): boolean {

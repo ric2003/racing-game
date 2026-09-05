@@ -25,6 +25,7 @@ import { applyFinishPlaces, beginRaceTiming, createRaceProgress, rankRace, updat
 import {
   DEFAULT_TRACK,
   getTrack,
+  finishGraceMs,
   nearestTrackPoint,
   TRACKS,
   type HazardDefinition,
@@ -227,7 +228,7 @@ export class RaceRoom {
     if (playerId !== this.hostId) return 'Only the host can change race settings.'
     if (this.phase !== 'lobby') return 'Race settings can only change in the lobby.'
     if (!TRACKS.some((track) => track.id === settings.trackId)) return 'That track is unavailable.'
-    if (![2, 3, 5].includes(settings.laps) || !['standard', 'knockout'].includes(settings.mode)) return 'Race settings are invalid.'
+    if (![1, 2, 3, 5].includes(settings.laps) || !['standard', 'knockout'].includes(settings.mode)) return 'Race settings are invalid.'
     if (settings.mode === 'knockout' && this.players.size < 3) return 'Knockout needs at least three racers.'
     const trackChanged = settings.trackId !== this.settings.trackId
     Object.assign(this.settings, copySettings(settings))
@@ -533,7 +534,7 @@ export class RaceRoom {
         winner.race.finishPlace = 1
       }
       this.phase = 'finished'
-    } else if (players.length > 0 && (finished.length === players.length || (this.firstFinishAt !== null && now - this.firstFinishAt > 20_000))) {
+    } else if (players.length > 0 && (finished.length === players.length || (this.firstFinishAt !== null && now - this.firstFinishAt > finishGraceMs(this.track)))) {
       this.phase = 'finished'
     }
   }
@@ -541,7 +542,7 @@ export class RaceRoom {
   private applyKnockout(players: RoomPlayer[], now: number): void {
     if (this.settings.mode !== 'knockout') return
     const checkpointTotal = this.track.checkpoints.length
-    const threshold = 4
+    const threshold = Math.max(1, Math.floor(checkpointTotal / 2))
     const completed = Math.max(...players.map((player) => player.race.lap * checkpointTotal + (player.race.nextCheckpoint === 0 ? checkpointTotal : player.race.nextCheckpoint - 1)), 0)
     const thresholdNumber = Math.floor(completed / threshold)
     if (completed < threshold || thresholdNumber <= this.lastKnockoutThreshold) return

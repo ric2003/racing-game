@@ -34,7 +34,7 @@ function segmentSide(track: TrackDefinition, index: number): { x: number; z: num
   return { x: dz / length, z: -dx / length }
 }
 
-function createStripGeometry(track: TrackDefinition, leftOffset: number, rightOffset: number, y: number, alternatingGroups = false): THREE.BufferGeometry {
+function createStripGeometry(track: TrackDefinition, leftOffset: number, rightOffset: number, y: number, alternatingColors = false): THREE.BufferGeometry {
   const positions: number[] = []
   for (let index = 0; index < track.points.length; index += 1) {
     const point = track.points[index]
@@ -62,12 +62,14 @@ function createStripGeometry(track: TrackDefinition, leftOffset: number, rightOf
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geometry.computeVertexNormals()
-  if (alternatingGroups) {
+  if (alternatingColors) {
+    const colors: number[] = []
+    const palette = [new THREE.Color(0xf7efe4), new THREE.Color(0xff4f70)]
     for (let index = 0; index < track.points.length; index += 1) {
-      // Keep each segment and its corner join in the same curb color.
-      // Vertices stay local so offset joins cannot fold across the road.
-      geometry.addGroup(index * 12, 12, index % 2)
+      const color = palette[index % 2]
+      for (let vertex = 0; vertex < 12; vertex += 1) colors.push(color.r, color.g, color.b)
     }
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
   }
   return geometry
 }
@@ -87,14 +89,11 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   const curbWidth = 0.65
   const leftCurbGeometry = createStripGeometry(track, TRACK_WIDTH / 2 + curbWidth, TRACK_WIDTH / 2, 0.12, true)
   const rightCurbGeometry = createStripGeometry(track, -TRACK_WIDTH / 2, -TRACK_WIDTH / 2 - curbWidth, 0.12, true)
-  const edgeMaterials = [
-    new THREE.MeshStandardMaterial({ color: 0xf7efe4, roughness: 0.7, depthWrite: false }),
-    new THREE.MeshStandardMaterial({ color: 0xff4f70, roughness: 0.7, depthWrite: false }),
-  ]
+  const edgeMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, depthWrite: false })
   const road = new THREE.Mesh(roadGeometry, roadMaterial)
   road.receiveShadow = true
-  const leftCurb = new THREE.Mesh(leftCurbGeometry, edgeMaterials)
-  const rightCurb = new THREE.Mesh(rightCurbGeometry, edgeMaterials)
+  const leftCurb = new THREE.Mesh(leftCurbGeometry, edgeMaterial)
+  const rightCurb = new THREE.Mesh(rightCurbGeometry, edgeMaterial)
   leftCurb.receiveShadow = true
   rightCurb.receiveShadow = true
   group.add(road, leftCurb, rightCurb)
@@ -207,39 +206,52 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   const oilRingMaterial = new THREE.MeshBasicMaterial({ color: 0xc05cff, transparent: true, opacity: 0.9 })
   const oilVisuals = new Map<number, THREE.Group>()
 
-  const trunkGeometry = new THREE.CylinderGeometry(0.28, 0.38, 2.2, 6)
-  const crownGeometry = new THREE.ConeGeometry(1.35, 3.4, 7)
-  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6e4939, roughness: 1 })
-  const crownMaterial = new THREE.MeshStandardMaterial({ color: 0x2ca66f, roughness: 0.95 })
-  const treeCount = 70
-  const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, treeCount)
-  const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, treeCount)
-  const matrix = new THREE.Matrix4()
+  const harbor = track.theme === 'harbor'
+  const desert = track.theme === 'desert'
+  const trunkGeometry = harbor ? new THREE.BoxGeometry(5, 3, 9) : desert ? new THREE.DodecahedronGeometry(2.2, 0) : new THREE.CylinderGeometry(0.28, 0.38, 2.2, 6)
+  const crownGeometry = harbor ? new THREE.BoxGeometry(5, 3, 9) : desert ? new THREE.DodecahedronGeometry(3.4, 0) : new THREE.ConeGeometry(1.35, 3.4, 7)
+  const trunkMaterial = new THREE.MeshStandardMaterial({ color: harbor ? 0x427c95 : desert ? 0xab7050 : 0x6e4939, roughness: 1 })
+  const crownMaterial = new THREE.MeshStandardMaterial({ color: harbor ? 0xcf684b : desert ? 0xd49b67 : 0x2ca66f, roughness: 0.95 })
   const random = seededRandom(0x4e454f4e)
-  let placedTrees = 0
-  let attempts = 0
-  while (placedTrees < treeCount && attempts < 5_000) {
-    attempts += 1
-    const x = -118 + random() * 230
-    const z = -88 + random() * 178
-    if (nearestTrackPoint({ x, z }, track).distance < TRACK_WIDTH / 2 + 4) continue
-    if (Math.abs(x - 8) < 14 && Math.abs(z + 64) < 9) continue
-    matrix.makeTranslation(x, 1.1, z)
-    trunks.setMatrixAt(placedTrees, matrix)
-    matrix.makeTranslation(x, 3.4, z)
-    crowns.setMatrixAt(placedTrees, matrix)
-    placedTrees += 1
+  const sceneryInstances: THREE.InstancedMesh[] = []
+  const sceneryCount = track.theme ? 700 : 70
+  const matrix = new THREE.Matrix4()
+  // Short batches let the camera cull scenery on distant sections of long circuits.
+  for (let batch = 0; batch < sceneryCount; batch += 50) {
+    const capacity = Math.min(50, sceneryCount - batch)
+    const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, capacity)
+    const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, capacity)
+    let placed = 0
+    for (let attempt = 0; attempt < capacity * 20 && placed < capacity; attempt += 1) {
+      const index = Math.floor((batch + placed) / sceneryCount * track.points.length)
+      const point = track.points[index]
+      const side = segmentSide(track, index)
+      const offset = (placed % 2 ? -1 : 1) * (16 + random() * 45)
+      const x = track.theme ? point.x + side.x * offset : -118 + random() * 230
+      const z = track.theme ? point.z + side.z * offset : -88 + random() * 178
+      if (nearestTrackPoint({ x, z }, track).distance < TRACK_WIDTH / 2 + 6) continue
+      if (!track.theme && Math.abs(x - 8) < 14 && Math.abs(z + 64) < 9) continue
+      matrix.makeTranslation(x, harbor ? 1.5 : 1.1, z)
+      trunks.setMatrixAt(placed, matrix)
+      matrix.makeTranslation(x, harbor ? 4.5 : desert ? 2.6 : 3.4, z)
+      crowns.setMatrixAt(placed, matrix)
+      placed += 1
+    }
+    trunks.count = crowns.count = placed
+    trunks.castShadow = crowns.castShadow = true
+    trunks.computeBoundingSphere()
+    crowns.computeBoundingSphere()
+    group.add(trunks, crowns)
+    sceneryInstances.push(trunks, crowns)
   }
-  trunks.count = placedTrees
-  crowns.count = placedTrees
-  trunks.castShadow = true
-  crowns.castShadow = true
-  group.add(trunks, crowns)
 
   const standMaterial = new THREE.MeshStandardMaterial({ color: 0x6d6ae8, roughness: 0.75 })
   const standGeometry = new THREE.BoxGeometry(17, 4, 6)
   const stand = new THREE.Mesh(standGeometry, standMaterial)
-  stand.position.set(8, 2, -64)
+  if (track.theme) {
+    stand.position.set(start.x + start.normalZ * 25, 2, start.z - start.normalX * 25)
+    stand.rotation.y = Math.atan2(start.normalX, start.normalZ)
+  } else stand.position.set(8, 2, -64)
   stand.castShadow = true
   group.add(stand)
   const itemState = new Map<number, ItemBoxSnapshot>()
@@ -303,9 +315,10 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
       roadMaterial.dispose()
       leftCurbGeometry.dispose()
       rightCurbGeometry.dispose()
-      edgeMaterials.forEach((material) => material.dispose())
+      edgeMaterial.dispose()
       startTileGeometry.dispose()
       startMaterials.forEach((material) => material.dispose())
+      sceneryInstances.forEach((mesh) => mesh.dispose())
       trunkGeometry.dispose()
       crownGeometry.dispose()
       trunkMaterial.dispose()

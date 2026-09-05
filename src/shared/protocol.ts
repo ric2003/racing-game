@@ -1,6 +1,6 @@
 export type RacePhase = 'lobby' | 'countdown' | 'racing' | 'finished'
 export type RaceMode = 'standard' | 'knockout'
-export type LapCount = 2 | 3 | 5
+export type LapCount = 1 | 2 | 3 | 5
 export type ItemType = 'turbo' | 'shield' | 'pulse-bolt' | 'oil-slick'
 export type QuickReaction = 'nice' | 'oops' | 'rematch'
 

@@ -1,6 +1,6 @@
 # Neon Apex
 
-Neon Apex is a desktop-browser multiplayer kart racing MVP built with React, Three.js, TypeScript, and raw WebSockets. Two to four players join a private room, race three laps on one procedural track, and receive server-authoritative standings.
+Neon Apex is a desktop-browser multiplayer kart racing MVP built with React, Three.js, TypeScript, and raw WebSockets. Two to four players join a private room, choose from six procedural circuits and race one, two, three, or five laps, and receive server-authoritative standings.
 
 ## Requirements
 
@@ -24,6 +24,25 @@ npm run start
 ```
 
 Open `http://localhost:3001`. The Node process serves `dist/` and accepts WebSocket connections at `/ws`.
+
+## Tracks
+
+The original Neon Classic, Neon Harbor, and Skyway Switchbacks remain available.
+Three endurance circuits each have approximately ten times Neon Classic's driving
+distance, about 4,509 world units per lap:
+
+- Forest Run has wooded bends and a winding return section.
+- Harbor Grand Prix has dockside straights, inward loops, and container scenery.
+- Desert Endurance has broad sweeps, tighter turns, and rock formations.
+
+Choose **1 lap** in the lobby for a first endurance race. At the kart's normal
+maximum speed, these laps take at least about two and a half minutes, plus time
+for acceleration, corners, and incidents. Boosts can shorten that estimate.
+The road width and kart handling are the same on every track. Long circuits have
+64 checkpoints, 64 item boxes, 16 boost pads, and eight moving barriers. Knockout
+eliminations remain spaced at half-lap progress intervals. After the first finish,
+remaining racers get up to 200 seconds on endurance circuits, compared with
+20 seconds on the original circuits.
 
 ## Controls
 

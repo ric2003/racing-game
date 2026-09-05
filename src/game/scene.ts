@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { HazardSnapshot, ItemBoxSnapshot, KartSnapshot, OilSlickSnapshot, RaceEvent } from '../shared/protocol.js'
 import { createKartMesh, type KartVisual } from './kart-mesh.js'
 import { createTrackMesh } from './track-mesh.js'
-import { DEFAULT_TRACK, type TrackDefinition } from '../shared/track.js'
+import { DEFAULT_TRACK, getTrackBounds, type TrackDefinition } from '../shared/track.js'
 
 export interface RenderKart extends KartSnapshot {
   correctionX?: number
@@ -42,8 +42,9 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x8fd4e8)
-  scene.fog = new THREE.Fog(0x8fd4e8, 90, 260)
+  const skyColor = track.theme === 'desert' ? 0xf0c995 : track.theme === 'harbor' ? 0x98bed2 : 0x8fd4e8
+  scene.background = new THREE.Color(skyColor)
+  scene.fog = new THREE.Fog(skyColor, 90, 260)
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 340)
   camera.position.set(0, 10, -15)
 
@@ -57,13 +58,17 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   sun.shadow.camera.top = 125
   sun.shadow.camera.bottom = -125
   sun.shadow.camera.far = 300
-  scene.add(sun)
+  scene.add(sun, sun.target)
 
-  const groundGeometry = new THREE.CircleGeometry(185, 72)
-  const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x4baf69, roughness: 1 })
+  const bounds = getTrackBounds(track)
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2
+  const groundRadius = track.theme ? Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) / 2 + 120 : 185
+  const groundGeometry = new THREE.CircleGeometry(groundRadius, 72)
+  const groundMaterial = new THREE.MeshStandardMaterial({ color: track.theme === 'desert' ? 0xdab47b : track.theme === 'harbor' ? 0x668a95 : 0x4baf69, roughness: 1 })
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
   ground.rotation.x = -Math.PI / 2
-  ground.position.y = -0.09
+  ground.position.set(track.theme ? centerX : 0, -0.09, track.theme ? centerZ : 0)
   ground.receiveShadow = true
   scene.add(ground)
   const trackVisual = createTrackMesh(track)
@@ -177,6 +182,10 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
 
     const cameraKart = karts.find((kart) => kart.id === cameraId) ?? karts.find((kart) => kart.id === localId)
     if (cameraKart) {
+      if (track.theme) {
+        sun.position.set(cameraKart.x - 50, 75, cameraKart.z - 40)
+        sun.target.position.set(cameraKart.x, 0, cameraKart.z)
+      }
       if (followedKartId !== cameraKart.id || cameraHeading === null) {
         followedKartId = cameraKart.id
         cameraHeading = cameraKart.heading

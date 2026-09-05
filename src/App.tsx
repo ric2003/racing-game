@@ -4,6 +4,7 @@ import { GameCanvas } from './game/GameCanvas.js'
 import { Minimap } from './game/Minimap.js'
 import { bindingConflict, DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
+import { getTrack, getTrackLength } from './shared/track.js'
 import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
 import type { ItemType, KartSnapshot, RaceEvent, RaceSettings } from './shared/protocol.js'
 
@@ -247,9 +248,10 @@ function App() {
                   {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
                 </select>
               </label>
+              <p className="room-invite">Lap distance: {Math.round(getTrackLength(getTrack(settings.trackId)))} units{getTrack(settings.trackId).theme ? ' · Endurance circuit · Try 1 lap' : ''}</p>
               <label>LAPS
                 <select value={settings.laps} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, laps: Number(event.target.value) as RaceSettings['laps'] })}>
-                  {[2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
+                  {[1, 2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
                 </select>
               </label>
               <label>MODE

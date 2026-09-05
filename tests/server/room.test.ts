@@ -5,7 +5,7 @@ import { MAX_SOCKET_BUFFER_BYTES, sendServerMessage } from '../../server/socket.
 import { LocalPredictor } from '../../src/game/prediction.js'
 import { createTrackMesh } from '../../src/game/track-mesh.js'
 import type { KartSnapshot, PendingInput, ServerMessage } from '../../src/shared/protocol.js'
-import { CHECKPOINTS, DEFAULT_TRACK, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
+import { CHECKPOINTS, DEFAULT_TRACK, getTrack, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
 
 function closedSocket(): WebSocket {
   return { readyState: WebSocket.CLOSED } as WebSocket
@@ -48,6 +48,47 @@ function placeForCollision(room: RaceRoom, checkpointIndex: number): void {
 }
 
 describe('authoritative race room', () => {
+  it('waits for half a lap before the first endurance knockout', () => {
+    const { room, advance } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.addPlayer('b', 'Bravo', closedSocket())
+    room.addPlayer('c', 'Charlie', closedSocket())
+    expect(room.updateSettings(host.id, { trackId: 'forest-run', laps: 1, itemsEnabled: false, mode: 'knockout' })).toBeNull()
+    expect(room.start(host.id)).toBeNull()
+    room.phase = 'racing'
+    host.race.nextCheckpoint = 32
+    advance()
+    expect([...room.players.values()].filter((player) => player.race.eliminated)).toHaveLength(0)
+    host.race.nextCheckpoint = 33
+    advance()
+    expect([...room.players.values()].filter((player) => player.race.eliminated)).toHaveLength(1)
+  })
+
+  it('runs a one-lap endurance race and gives trailing racers the longer finish window', () => {
+    const { room, advance, setClock } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.addPlayer('b', 'Bravo', closedSocket())
+    expect(room.updateSettings(host.id, { trackId: 'forest-run', laps: 1, itemsEnabled: false, mode: 'standard' })).toBeNull()
+    expect(room.start(host.id)).toBeNull()
+    for (let tick = 0; tick < 177; tick += 1) advance()
+    expect(room.phase).toBe('racing')
+    const finish = getTrack('forest-run').checkpoints[0]
+    host.race.nextCheckpoint = 0
+    host.kart.x = finish.x - finish.normalX * 0.1
+    host.kart.z = finish.z - finish.normalZ * 0.1
+    host.kart.vx = finish.normalX * 20
+    host.kart.vz = finish.normalZ * 20
+    advance()
+    expect(host.race.finishedAt).not.toBeNull()
+    expect(host.race.lap).toBe(1)
+    setClock(25_000)
+    advance()
+    expect(room.phase).toBe('racing')
+    setClock(205_000)
+    advance()
+    expect(room.phase).toBe('finished')
+  })
+
   it('keeps events newer than client cursors from warm-up through same-track rematches', () => {
     const messages: string[] = []
     const { room, advance } = createRoom()

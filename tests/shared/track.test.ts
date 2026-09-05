@@ -35,7 +35,7 @@ function expectNoSelfIntersections(points: Point2[]): void {
       const rightNext = (right + 1) % points.length
       const gap = Math.min(right - left, points.length - (right - left))
       if (gap <= 1) continue
-      expect(segmentsCross(points[left], points[leftNext], points[right], points[rightNext])).toBe(false)
+      if (segmentsCross(points[left], points[leftNext], points[right], points[rightNext])) throw new Error(`Track segments ${left} and ${right} intersect`)
     }
   }
 }
@@ -143,8 +143,8 @@ describe('technical track geometry', () => {
   })
 
   it('exposes three versioned circuits with valid starts, checkpoints, item boxes, and hazards', () => {
-    expect(TRACKS.map((track) => track.id)).toEqual(['neon-classic', 'neon-harbor', 'skyway-switchbacks'])
-    for (const track of TRACKS) {
+    expect(TRACKS.slice(0, 3).map((track) => track.id)).toEqual(['neon-classic', 'neon-harbor', 'skyway-switchbacks'])
+    for (const track of TRACKS.slice(0, 3)) {
       expect(track.version).toBe(2)
       expect(track.points).toHaveLength(150)
       expect(track.checkpoints).toHaveLength(8)

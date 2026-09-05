@@ -71,7 +71,7 @@ export function parseClientMessage(payload: string | Buffer): ParseResult {
   }
   if (type === 'update-race-settings') {
     if (typeof value.trackId !== 'string' || value.trackId.length < 3 || value.trackId.length > 64) return { ok: false, code: 'invalid-track', message: 'Track is invalid.' }
-    if (value.laps !== 2 && value.laps !== 3 && value.laps !== 5) return { ok: false, code: 'invalid-settings', message: 'Lap count is invalid.' }
+    if (value.laps !== 1 && value.laps !== 2 && value.laps !== 3 && value.laps !== 5) return { ok: false, code: 'invalid-settings', message: 'Lap count is invalid.' }
     if (typeof value.itemsEnabled !== 'boolean' || (value.mode !== 'standard' && value.mode !== 'knockout')) return { ok: false, code: 'invalid-settings', message: 'Race settings are invalid.' }
     return { ok: true, message: { type, trackId: value.trackId, laps: value.laps as LapCount, itemsEnabled: value.itemsEnabled, mode: value.mode as RaceMode } }
   }

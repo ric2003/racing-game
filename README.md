@@ -39,10 +39,24 @@ Choose **1 lap** in the lobby for a first endurance race. At the kart's normal
 maximum speed, these laps take at least about two and a half minutes, plus time
 for acceleration, corners, and incidents. Boosts can shorten that estimate.
 The road width and kart handling are the same on every track. Long circuits have
-64 checkpoints, 64 item boxes, 16 boost pads, and eight moving barriers. Knockout
+64 checkpoints, 64 possible item-box locations, 16 boost pads, and eight moving barriers. Knockout
 eliminations remain spaced at half-lap progress intervals. After the first finish,
 remaining racers get up to 200 seconds on endurance circuits, compared with
 20 seconds on the original circuits.
+
+Item-box supply scales with the number of racers at the start of each race:
+
+| Racers | Original circuits | Endurance circuits |
+| --- | --- | --- |
+| 2 | 4 boxes | 16 boxes |
+| 3 | 6 boxes | 24 boxes |
+| 4 | 8 boxes | 32 boxes |
+
+The server selects locations around the full lap. Only selected boxes appear and
+can be collected. Each box still respawns six seconds after collection, and each
+kart can hold one item. Supply stays fixed during the race, including disconnects
+and reconnects, then adjusts to the next race's starting field. Turning items off
+hides all boxes. Boost pads and moving barriers keep their existing counts.
 
 ## Controls
 

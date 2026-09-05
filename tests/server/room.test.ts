@@ -48,6 +48,86 @@ function placeForCollision(room: RaceRoom, checkpointIndex: number): void {
 }
 
 describe('authoritative race room', () => {
+  it('only collects selected boxes and preserves their cooldown through a disconnect', () => {
+    const { room, advance, setClock } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', closedSocket())!
+    const guest = room.addPlayer('b', 'Bravo', closedSocket())!
+    expect(room.updateSettings(host.id, { ...room.settings, trackId: 'forest-run' })).toBeNull()
+    expect(room.start(host.id)).toBeNull()
+    for (let tick = 0; tick < 177; tick += 1) advance()
+    const track = getTrack('forest-run')
+    host.kart.x = track.itemBoxes[1].x
+    host.kart.z = track.itemBoxes[1].z
+    advance()
+    expect(host.item.heldItem).toBeNull()
+
+    const box = room.itemBoxSnapshots[0]
+    host.kart.x = box.x
+    host.kart.z = box.z
+    advance()
+    expect(host.item.heldItem).not.toBeNull()
+    host.item.heldItem = null
+    const collected = room.itemBoxSnapshots
+    room.suspendPlayer(guest.id)
+    expect(room.itemBoxSnapshots).toEqual(collected)
+    expect(room.resumePlayerByToken(guest.name, guest.resumeToken, closedSocket())).not.toBeNull()
+    expect(room.itemBoxSnapshots).toEqual(collected)
+    setClock(collected[0].availableAt - 34)
+    advance()
+    expect(host.item.heldItem).toBeNull()
+    setClock(collected[0].availableAt)
+    advance()
+    expect(host.item.heldItem).not.toBeNull()
+  })
+
+  it('uses the voted track and recalculates supply for the next starting field', () => {
+    const { room } = createRoom()
+    room.addPlayer('a', 'Alpha', closedSocket())
+    room.addPlayer('b', 'Bravo', closedSocket())
+    expect(room.castTrackVote('b', 'desert-endurance')).toBeNull()
+    expect(room.start('a')).toBeNull()
+    expect(room.settings.trackId).toBe('desert-endurance')
+    expect(room.itemBoxSnapshots).toHaveLength(16)
+    room.phase = 'finished'
+    expect(room.requestRematch('a')).toBeNull()
+    room.addPlayer('c', 'Charlie', closedSocket())
+    room.addPlayer('d', 'Delta', closedSocket())
+    expect(room.start('a')).toBeNull()
+    expect(room.itemBoxSnapshots).toHaveLength(32)
+    room.phase = 'finished'
+    expect(room.requestRematch('a')).toBeNull()
+    room.removePlayer('d')
+    expect(room.start('a')).toBeNull()
+    expect(room.itemBoxSnapshots).toHaveLength(24)
+  })
+
+  it.each([
+    ['neon-classic', 2, 4], ['neon-classic', 3, 6], ['neon-classic', 4, 8],
+    ['forest-run', 2, 16], ['forest-run', 3, 24], ['forest-run', 4, 32],
+  ] as const)('starts %s with %i racers and %i active item boxes', (trackId, playerCount, boxCount) => {
+    const messages: string[] = []
+    const { room } = createRoom()
+    for (let index = 0; index < playerCount; index += 1) room.addPlayer(String(index), `Racer${index}`, index === 0 ? openSocket(messages) : closedSocket())
+    expect(room.updateSettings('0', { ...room.settings, trackId })).toBeNull()
+    expect(room.start('0')).toBeNull()
+    const boxes = snapshots(messages).at(-1)!.itemBoxes!
+    expect(boxes).toHaveLength(boxCount)
+    expect(new Set(boxes.map((box) => box.id)).size).toBe(boxCount)
+    const track = getTrack(trackId)
+    for (const box of boxes) expect(box).toMatchObject(track.itemBoxes[box.id])
+    const ids = boxes.map((box) => box.id)
+    const gaps = ids.map((id, index) => (ids[(index + 1) % ids.length] - id + track.itemBoxes.length) % track.itemBoxes.length)
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1)
+    const visual = createTrackMesh(track)
+    try {
+      visual.update(0, 0, boxes, [], [])
+      const visible = visual.group.children.filter((child) => child.name.startsWith('item-box-') && child.visible)
+      expect(visible.map((child) => child.name)).toEqual(boxes.map((box) => `item-box-${box.id}`))
+    } finally {
+      visual.dispose()
+    }
+  })
+
   it('waits for half a lap before the first endurance knockout', () => {
     const { room, advance } = createRoom()
     const host = room.addPlayer('a', 'Alpha', closedSocket())!
@@ -141,9 +221,9 @@ describe('authoritative race room', () => {
           room.phase = phase
           room.broadcastSnapshot()
           const snapshot = snapshots(messages).at(-1)!
-          expect(snapshot.itemBoxes).toHaveLength(itemsEnabled ? DEFAULT_TRACK.itemBoxes.length : 0)
+          expect(snapshot.itemBoxes).toHaveLength(itemsEnabled ? 4 : 0)
           visual.update(0, snapshot.serverTime, snapshot.itemBoxes, snapshot.hazards, snapshot.oilSlicks)
-          const visibleCount = itemsEnabled ? DEFAULT_TRACK.itemBoxes.length - (phase === 'finished' ? 1 : 0) : 0
+          const visibleCount = itemsEnabled ? 4 - (phase === 'finished' ? 1 : 0) : 0
           expect(boxes.filter((box) => box.visible)).toHaveLength(visibleCount)
           expect(snapshot.hazards).toHaveLength(DEFAULT_TRACK.hazards.length)
 

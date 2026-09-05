@@ -25,6 +25,7 @@ import { applyFinishPlaces, beginRaceTiming, createRaceProgress, rankRace, updat
 import {
   DEFAULT_TRACK,
   getTrack,
+  getTrackLength,
   finishGraceMs,
   nearestTrackPoint,
   TRACKS,
@@ -404,7 +405,15 @@ export class RaceRoom {
   }
 
   private resetItems(): void {
-    this.itemBoxes = this.track.itemBoxes.map((point, id) => ({ id, x: point.x, z: point.z, availableAt: 0 }))
+    // Endurance laps need more pickup opportunities, but not every candidate spot.
+    // Rebuild for each starting field; disconnects never relocate or refill boxes.
+    const boxesPerPlayer = getTrackLength(this.track) >= getTrackLength(DEFAULT_TRACK) * 5 ? 8 : 2
+    const count = Math.min(this.track.itemBoxes.length, this.players.size * boxesPerPlayer)
+    this.itemBoxes = Array.from({ length: count }, (_, index) => {
+      const id = Math.floor(index * this.track.itemBoxes.length / count)
+      const point = this.track.itemBoxes[id]
+      return { id, x: point.x, z: point.z, availableAt: 0 }
+    })
     this.oilSlicks = []
   }
 

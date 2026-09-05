@@ -3,6 +3,7 @@ import WebSocket from 'ws'
 import { RaceRoom } from '../../server/room.js'
 import { MAX_SOCKET_BUFFER_BYTES, sendServerMessage } from '../../server/socket.js'
 import { LocalPredictor } from '../../src/game/prediction.js'
+import { createTrackMesh } from '../../src/game/track-mesh.js'
 import type { KartSnapshot, PendingInput, ServerMessage } from '../../src/shared/protocol.js'
 import { CHECKPOINTS, DEFAULT_TRACK, nearestTrackPoint, TRACK_POINTS } from '../../src/shared/track.js'
 
@@ -47,6 +48,79 @@ function placeForCollision(room: RaceRoom, checkpointIndex: number): void {
 }
 
 describe('authoritative race room', () => {
+  it('keeps events newer than client cursors from warm-up through same-track rematches', () => {
+    const messages: string[] = []
+    const { room, advance } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', openSocket(messages))!
+    room.addPlayer('b', 'Bravo', closedSocket())
+    const pad = DEFAULT_TRACK.hazards.find((hazard) => hazard.type === 'boost-pad')!
+    host.kart.x = pad.x
+    host.kart.z = pad.z
+    advance()
+    room.broadcastSnapshot()
+    const warmupEvents = snapshots(messages).at(-1)!.events!
+    expect(warmupEvents.some((event) => event.kind === 'boost')).toBe(true)
+    let clientCursor = Math.max(...warmupEvents.map((event) => event.id))
+
+    for (let race = 0; race < 3; race += 1) {
+      expect(room.start(host.id)).toBeNull()
+      expect(snapshots(messages).at(-1)!.events).toEqual([])
+      for (let tick = 0; tick < 177; tick += 1) advance()
+      expect(room.phase).toBe('racing')
+      const box = room.itemBoxSnapshots[0]
+      host.kart.x = box.x
+      host.kart.z = box.z
+      advance()
+      room.broadcastSnapshot()
+      const events = snapshots(messages).at(-1)!.events!
+      expect(events.some((event) => event.kind === 'item-pickup')).toBe(true)
+      expect(events.every((event) => event.id > clientCursor)).toBe(true)
+      clientCursor = Math.max(...events.map((event) => event.id))
+      room.phase = 'finished'
+      expect(room.requestRematch(host.id)).toBeNull()
+      expect(snapshots(messages).at(-1)!.events).toEqual([])
+    }
+  })
+
+  it('hides disabled item boxes throughout a race and restores them when enabled for a rematch', () => {
+    const messages: string[] = []
+    const { room, advance } = createRoom()
+    const host = room.addPlayer('a', 'Alpha', openSocket(messages))!
+    room.addPlayer('b', 'Bravo', closedSocket())
+    const visual = createTrackMesh()
+    const boxes = visual.group.children.filter((child) => child.name.startsWith('item-box-'))
+    expect(boxes).toHaveLength(DEFAULT_TRACK.itemBoxes.length)
+
+    try {
+      for (const itemsEnabled of [false, true]) {
+        expect(room.updateSettings(host.id, { ...room.settings, itemsEnabled })).toBeNull()
+        expect(snapshots(messages).at(-1)!.itemBoxes).toEqual([])
+        expect(room.start(host.id)).toBeNull()
+        for (const phase of ['countdown', 'racing', 'finished'] as const) {
+          room.phase = phase
+          room.broadcastSnapshot()
+          const snapshot = snapshots(messages).at(-1)!
+          expect(snapshot.itemBoxes).toHaveLength(itemsEnabled ? DEFAULT_TRACK.itemBoxes.length : 0)
+          visual.update(0, snapshot.serverTime, snapshot.itemBoxes, snapshot.hazards, snapshot.oilSlicks)
+          const visibleCount = itemsEnabled ? DEFAULT_TRACK.itemBoxes.length - (phase === 'finished' ? 1 : 0) : 0
+          expect(boxes.filter((box) => box.visible)).toHaveLength(visibleCount)
+          expect(snapshot.hazards).toHaveLength(DEFAULT_TRACK.hazards.length)
+
+          if (phase === 'racing') {
+            const box = room.itemBoxSnapshots[0]
+            host.kart.x = box.x
+            host.kart.z = box.z
+            advance()
+            expect(host.item.heldItem !== null).toBe(itemsEnabled)
+          }
+        }
+        expect(room.requestRematch(host.id)).toBeNull()
+      }
+    } finally {
+      visual.dispose()
+    }
+  })
+
   it('gives a road boost twice the normal acceleration for its short burst', () => {
     const { room, advance } = createRoom()
     const player = room.addPlayer('a', 'Alpha', closedSocket())!

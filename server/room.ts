@@ -396,7 +396,7 @@ export class RaceRoom {
       player.lastStandingPlace = player.slot + 1
     }
     this.events = []
-    this.eventId = 0
+    // Clients keep their event cursors across races in the same room.
     this.oilId = 0
     this.lastKnockoutThreshold = 0
     this.hazardCooldowns.clear()
@@ -766,7 +766,7 @@ export class RaceRoom {
       settings: copySettings(this.settings),
       karts,
       standings,
-      itemBoxes: this.phase === 'lobby' ? [] : this.itemBoxes.map((box) => ({ ...box })),
+      itemBoxes: this.phase === 'lobby' || !this.settings.itemsEnabled ? [] : this.itemBoxes.map((box) => ({ ...box })),
       hazards,
       oilSlicks: this.oilSlicks.map(({ id, x, z, expiresAt }) => ({ id, x, z, expiresAt })),
       events: [...this.events],

@@ -290,12 +290,12 @@ function App() {
             <div><span>LAP</span><strong>{Math.min(localKart.lap + 1, settings.laps)}<small>/{settings.laps}</small></strong></div>
             <div><span>TIME</span><strong className="hud-time">{formatTime(network.snapshot.standings.find((standing) => standing.id === network.playerId)?.lapTime ?? null)}</strong></div>
           </section>
-          <section className={`item-hud ${heldItem ? `has-item item-${heldItem}` : ''}`} aria-label="Held item">
+          {settings.itemsEnabled && <section className={`item-hud ${heldItem ? `has-item item-${heldItem}` : ''}`} aria-label="Held item">
             <span>{heldItem ? 'ITEM READY' : 'ITEM'}</span>
             <strong>{heldItemInfo ? <><i aria-hidden="true">{heldItemInfo.symbol}</i>{heldItemInfo.label}</> : '—'}</strong>
             <small className="item-cue">{heldItemInfo?.cue ?? 'Drive through a blue box'}</small>
             <small className="item-key">PRESS <kbd>E</kbd> TO USE</small>
-          </section>
+          </section>}
           <aside className="standings glass-panel" aria-label="Live standings">
             <span>STANDINGS</span>
             {network.snapshot.standings.map((standing) => (
@@ -330,7 +330,7 @@ function App() {
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
-      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>R</kbd> RESET</span>{phase !== 'lobby' && <span><kbd>E</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
+      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>R</kbd> RESET</span>{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>E</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
   )
 }

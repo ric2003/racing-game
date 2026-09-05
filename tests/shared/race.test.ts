@@ -24,6 +24,25 @@ function cross(index: number) {
 }
 
 describe('race progress', () => {
+  it('measures individual sectors across laps and only replaces improved sector records', () => {
+    const race = createRaceProgress()
+    beginRaceTiming(race, 0)
+    let time = 0
+    const firstLap = CHECKPOINTS.map((_, index) => (index + 1) * 100)
+    const secondLap = firstLap.map((duration, index) => duration + (index % 2 === 0 ? -50 : 50))
+    for (const durations of [firstLap, secondLap]) {
+      for (let sector = 0; sector < durations.length; sector += 1) {
+        time += durations[sector]
+        const crossing = cross((sector + 1) % CHECKPOINTS.length)
+        updateRaceProgress(race, crossing.previous, crossing.current, time)
+        if (sector < durations.length - 1) expect(race.sectorTimes).toEqual(durations.slice(0, sector + 1))
+      }
+      expect(race.lastLapTime).toBe(durations.reduce((sum, duration) => sum + duration, 0))
+      expect(race.sectorTimes).toEqual([])
+    }
+    expect(race.bestSectorTimes).toEqual(firstLap.map((duration, index) => Math.min(duration, secondLap[index])))
+  })
+
   it('rejects checkpoints crossed out of order', () => {
     const race = createRaceProgress()
     const wrong = cross(2)
@@ -103,6 +122,7 @@ describe('race progress', () => {
     expect(race.lastLapTime).toBe(800)
     expect(race.bestLapTime).toBe(800)
     expect(race.bestSectorTimes).toHaveLength(CHECKPOINTS.length)
+    expect(race.bestSectorTimes).toEqual(CHECKPOINTS.map(() => 100))
     expect(race.sectorTimes).toHaveLength(0)
     expect(race.finishedAt).toBeNull()
   })

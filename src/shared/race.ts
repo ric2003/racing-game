@@ -73,6 +73,7 @@ export function updateRaceProgress(
     const previousBest = progress.bestSectorTimes[sectorIndex]
     if (previousBest === undefined || sectorTime < previousBest) progress.bestSectorTimes[sectorIndex] = sectorTime
   }
+  progress.sectorStartedAt = now
   if (progress.nextCheckpoint === 0) {
     progress.lap += 1
     progress.nextCheckpoint = 1
@@ -81,7 +82,6 @@ export function updateRaceProgress(
       if (progress.bestLapTime == null || progress.lastLapTime < progress.bestLapTime) progress.bestLapTime = progress.lastLapTime
     }
     progress.lapStartedAt = now
-    progress.sectorStartedAt = now
     progress.sectorTimes = []
     if (progress.lap >= lapsToWin) progress.finishedAt = now
   } else {

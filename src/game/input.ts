@@ -43,19 +43,34 @@ export function saveKeyBindings(bindings: KeyBindings): void {
   window.dispatchEvent(new Event(KEY_BINDINGS_EVENT))
 }
 
+export function bindingConflict(bindings: KeyBindings, action: BindingAction, code: string): BindingAction | null {
+  // WASD, arrows, and Space remain fallback controls even after rebinding.
+  const fallbackBindings: Partial<Record<BindingAction, string[]>> = {
+    accelerate: ['KeyW', 'ArrowUp'], reverse: ['KeyS', 'ArrowDown'],
+    left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], brake: ['Space'],
+  }
+  return (Object.keys(DEFAULT_KEY_BINDINGS) as BindingAction[]).find((candidate) => (
+    candidate !== action && (bindings[candidate] === code || fallbackBindings[candidate]?.includes(code))
+  )) ?? null
+}
+
 export interface InputController {
   read: () => Controls
   consumeItem: () => boolean
   dispose: () => void
 }
 
-export function createInputController(element: HTMLElement, onReset: () => void): InputController {
+export function createInputController(element: HTMLElement, onReset: () => void, isEnabled: () => boolean = () => true): InputController {
   const pressed = new Set<string>()
   let bindings = loadKeyBindings()
   let itemQueued = false
   let gamepadItemPressed = false
   const refreshBindings = () => { bindings = loadKeyBindings() }
   const onKeyDown = (event: KeyboardEvent) => {
+    if (!isEnabled()) {
+      onBlur()
+      return
+    }
     if (isTypingTarget(event.target)) return
     const keyValue = event.key.toLowerCase()
     if (DRIVING_KEYS.has(event.code) || DRIVING_KEY_VALUES.has(keyValue) || DRIVING_KEY_CODES.has(event.keyCode) || Object.values(bindings).includes(event.code)) event.preventDefault()
@@ -72,7 +87,7 @@ export function createInputController(element: HTMLElement, onReset: () => void)
     itemQueued = false
     gamepadItemPressed = false
   }
-  const onPointerDown = () => element.focus()
+  const onPointerDown = () => { if (isEnabled()) element.focus() }
   window.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('keyup', onKeyUp, true)
   window.addEventListener('blur', onBlur)
@@ -80,8 +95,18 @@ export function createInputController(element: HTMLElement, onReset: () => void)
   window.addEventListener(KEY_BINDINGS_EVENT, refreshBindings)
   element.addEventListener('pointerdown', onPointerDown)
   return {
-    read: () => controlsFromPressed(pressed, bindings, gamepadAxis(0), gamepadAxis(1), gamepadButton(0)),
+    read: () => {
+      if (!isEnabled()) {
+        onBlur()
+        return { throttle: 0, steer: 0, brake: 0 }
+      }
+      return controlsFromPressed(pressed, bindings, gamepadAxis(0), gamepadAxis(1), gamepadButton(0))
+    },
     consumeItem: () => {
+      if (!isEnabled()) {
+        onBlur()
+        return false
+      }
       const currentGamepadItem = gamepadButton(2)
       const queued = itemQueued || (currentGamepadItem && !gamepadItemPressed)
       gamepadItemPressed = currentGamepadItem

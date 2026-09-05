@@ -8,14 +8,16 @@ import { InputScheduler, smoothSteering } from './input-scheduler.js'
 import { LocalPredictor } from './prediction.js'
 import { createRaceScene, type RenderKart } from './scene.js'
 import { RaceAudio } from './audio.js'
+import { selectCameraTarget } from './spectator.js'
 
 interface GameCanvasProps {
   client: GameClient
   playerId: string
   snapshot: Extract<ServerMessage, { type: 'snapshot' }>
+  inputEnabled: boolean
 }
 
-export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
+export function GameCanvas({ client, playerId, snapshot, inputEnabled }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const snapshotRef = useRef(snapshot)
   const predictorRef = useRef(new LocalPredictor())
@@ -23,6 +25,11 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
   const audioRef = useRef<RaceAudio | null>(null)
   const lastEventRef = useRef(0)
   const lastPhaseRef = useRef(snapshot.phase)
+  const inputEnabledRef = useRef(inputEnabled)
+
+  useEffect(() => {
+    inputEnabledRef.current = inputEnabled
+  }, [inputEnabled])
 
   useEffect(() => {
     snapshotRef.current = snapshot
@@ -52,10 +59,11 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
   }, [client, playerId, snapshot])
 
   useEffect(() => {
+    if (!inputEnabled) return undefined
     if (snapshot.phase !== 'lobby' && snapshot.phase !== 'countdown' && snapshot.phase !== 'racing') return undefined
     const frame = window.requestAnimationFrame(() => canvasRef.current?.focus({ preventScroll: true }))
     return () => window.cancelAnimationFrame(frame)
-  }, [snapshot.phase])
+  }, [snapshot.phase, inputEnabled])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -78,9 +86,9 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
     const activateAudio = () => audio.resume()
     canvas.addEventListener('pointerdown', activateAudio)
 
-    const input = createInputController(canvas, () => client.resetKart())
+    const input = createInputController(canvas, () => client.resetKart(), () => inputEnabledRef.current)
     const focusDriving = () => {
-      if (document.visibilityState === 'visible') canvas.focus({ preventScroll: true })
+      if (inputEnabledRef.current && document.visibilityState === 'visible') canvas.focus({ preventScroll: true })
     }
     const focusFrame = window.requestAnimationFrame(focusDriving)
     window.addEventListener('focus', focusDriving)
@@ -99,9 +107,9 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
       const latest = snapshotRef.current
       if (latest.phase === 'racing' || latest.phase === 'lobby') {
         const rawControls = input.read()
-        smoothedSteering = smoothSteering(smoothedSteering, rawControls.steer, delta)
+        smoothedSteering = inputEnabledRef.current ? smoothSteering(smoothedSteering, rawControls.steer, delta) : 0
         const controls = { ...rawControls, steer: smoothedSteering }
-        pendingUseItem = latest.phase === 'racing' && (pendingUseItem || input.consumeItem())
+        pendingUseItem = inputEnabledRef.current && latest.phase === 'racing' && (pendingUseItem || input.consumeItem())
         const samples = inputScheduler.takeSamples(delta)
         for (let sample = 0; sample < samples; sample += 1) {
           currentInput = client.sendInput({ ...controls, useItem: latest.phase === 'racing' && pendingUseItem })
@@ -123,9 +131,7 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
         local.correctionZ = predictorRef.current.correctionZ
         local.correctionHeading = predictorRef.current.correctionHeading
       }
-      const spectatorTarget = local !== undefined && (local.finishedAt !== null || local.eliminated)
-        ? latest.standings.find((standing) => !standing.eliminated && standing.id !== playerId)?.id ?? playerId
-        : playerId
+      const spectatorTarget = selectCameraTarget(playerId, latest.standings)
       scene.render(karts, playerId, delta, spectatorTarget, latest)
     })
 
@@ -145,7 +151,7 @@ export function GameCanvas({ client, playerId, snapshot }: GameCanvasProps) {
 
   return (
     <div className="game-canvas-shell">
-      <canvas ref={canvasRef} className="game-canvas" tabIndex={0} autoFocus aria-label="3D race track. Use WASD or arrow keys to drive." />
+      <canvas ref={canvasRef} className="game-canvas" tabIndex={0} aria-label="3D race track. Use WASD or arrow keys to drive." />
     </div>
   )
 }

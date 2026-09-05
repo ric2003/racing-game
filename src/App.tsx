@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import './App.css'
 import { GameCanvas } from './game/GameCanvas.js'
 import { Minimap } from './game/Minimap.js'
-import { DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
+import { bindingConflict, DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
 import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
 import type { ItemType, KartSnapshot, RaceEvent, RaceSettings } from './shared/protocol.js'
@@ -39,6 +39,7 @@ function App() {
   const [showControls, setShowControls] = useState(() => localStorage.getItem('neon-apex-controls-seen') !== '1')
   const [bindings, setBindings] = useState<KeyBindings>(() => loadKeyBindings())
   const [rebinding, setRebinding] = useState<BindingAction | null>(null)
+  const [bindingError, setBindingError] = useState<string | null>(null)
 
   useEffect(() => {
     const unsubscribe = client.subscribe(setNetwork)
@@ -49,21 +50,30 @@ function App() {
   }, [client])
 
   useEffect(() => {
-    if (!rebinding) return undefined
+    if (!rebinding || !showControls) return undefined
     const capture = (event: KeyboardEvent) => {
       event.preventDefault()
+      if (event.repeat) return
       if (event.code === 'Escape') {
+        setBindingError(null)
         setRebinding(null)
         return
       }
+      if (!event.code) return
+      const conflict = bindingConflict(bindings, rebinding, event.code)
+      if (conflict) {
+        setBindingError(`${formatBinding(event.code)} is already used for ${bindingLabel(conflict)}. Choose another key.`)
+        return
+      }
+      setBindingError(null)
       const next = { ...bindings, [rebinding]: event.code }
       saveKeyBindings(next)
       setBindings(next)
       setRebinding(null)
     }
-    window.addEventListener('keydown', capture, { once: true })
+    window.addEventListener('keydown', capture)
     return () => window.removeEventListener('keydown', capture)
-  }, [bindings, rebinding])
+  }, [bindings, rebinding, showControls])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -186,7 +196,7 @@ function App() {
 
   return (
     <main className="race-app">
-      {network.snapshot && <GameCanvas client={client} playerId={network.playerId} snapshot={network.snapshot} />}
+      {network.snapshot && <GameCanvas client={client} playerId={network.playerId} snapshot={network.snapshot} inputEnabled={!showControls} />}
       <header className={`topbar ${phase === 'lobby' ? '' : 'topbar-racing'}`}>
         {phase === 'lobby' && <a className="mini-brand" href="/" onClick={(event) => { event.preventDefault(); leave() }} aria-label="Leave race and return home">
           <span>NA</span> NEON APEX
@@ -277,10 +287,11 @@ function App() {
           <p className="panel-label">QUICK START</p>
           <h2>Find your line</h2>
           <p>{rebinding ? `Press a key for ${bindingLabel(rebinding)} (Esc cancels).` : 'Set your keys or keep the defaults.'}</p>
+          {bindingError && <p className="field-error" role="alert">{bindingError}</p>}
           {!rebinding && <div className="binding-grid">
-            {(Object.keys(DEFAULT_KEY_BINDINGS) as BindingAction[]).map((action) => <button type="button" key={action} onClick={() => setRebinding(action)}><span>{bindingLabel(action)}</span><kbd>{formatBinding(bindings[action])}</kbd></button>)}
+            {(Object.keys(DEFAULT_KEY_BINDINGS) as BindingAction[]).map((action) => <button type="button" key={action} onClick={() => { setBindingError(null); setRebinding(action) }}><span>{bindingLabel(action)}</span><kbd>{formatBinding(bindings[action])}</kbd></button>)}
           </div>}
-          <button className="primary-button" type="button" onClick={() => { localStorage.setItem('neon-apex-controls-seen', '1'); setShowControls(false) }}>Got it <span aria-hidden="true">→</span></button>
+          <button className="primary-button" type="button" onClick={() => { localStorage.setItem('neon-apex-controls-seen', '1'); setShowControls(false); setRebinding(null); setBindingError(null) }}>Got it <span aria-hidden="true">→</span></button>
         </section>
       )}
 
@@ -294,7 +305,7 @@ function App() {
             <span>{heldItem ? 'ITEM READY' : 'ITEM'}</span>
             <strong>{heldItemInfo ? <><i aria-hidden="true">{heldItemInfo.symbol}</i>{heldItemInfo.label}</> : '—'}</strong>
             <small className="item-cue">{heldItemInfo?.cue ?? 'Drive through a blue box'}</small>
-            <small className="item-key">PRESS <kbd>E</kbd> TO USE</small>
+            <small className="item-key">PRESS <kbd>{formatBinding(bindings.item)}</kbd> TO USE</small>
           </section>}
           <aside className="standings glass-panel" aria-label="Live standings">
             <span>STANDINGS</span>
@@ -330,7 +341,7 @@ function App() {
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
-      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>WASD</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>SPACE</kbd> BRAKE</span><span><kbd>R</kbd> RESET</span>{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>E</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
+      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>{[bindings.accelerate, bindings.left, bindings.reverse, bindings.right].map(formatBinding).join(' / ')}</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>{formatBinding(bindings.brake)}</kbd> BRAKE</span><span><kbd>{formatBinding(bindings.reset)}</kbd> RESET</span>{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>{formatBinding(bindings.item)}</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
   )
 }
@@ -376,7 +387,7 @@ function latestItemNotice(events: RaceEvent[], karts: KartSnapshot[], playerId: 
   })
   if (!event) return null
   const item = event.item ? ITEM_INFO[event.item] : null
-  if (event.kind === 'item-pickup' && event.playerId === playerId) return `PICKED UP ${item?.label ?? 'ITEM'} · ${item?.cue ?? 'PRESS E TO USE'}`
+  if (event.kind === 'item-pickup' && event.playerId === playerId) return `PICKED UP ${item?.label ?? 'ITEM'} · ${item?.cue ?? 'ITEM READY'}`
   if (event.kind === 'item-used' && event.playerId === playerId) return `${item?.label ?? 'ITEM'} USED`
   if (event.kind === 'item-hit' && event.targetId === playerId) return `SHIELD BLOCKED ${item?.label ?? 'A HIT'}`
   if (event.kind === 'spin' && event.targetId === playerId) return `HIT BY ${item?.label ?? 'HAZARD'}`

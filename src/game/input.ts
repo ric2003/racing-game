@@ -126,7 +126,7 @@ export function createInputController(element: HTMLElement, onReset: () => void,
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || target.matches('input, textarea, select')
+  return target.isContentEditable || target.matches('input, textarea, select, button, summary, a')
 }
 
 function gamepadAxis(index: number): number {

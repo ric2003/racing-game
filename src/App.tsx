@@ -4,7 +4,7 @@ import { GameCanvas } from './game/GameCanvas.js'
 import { Minimap } from './game/Minimap.js'
 import { bindingConflict, DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
-import { getTrack, getTrackLength } from './shared/track.js'
+import { getTrack } from './shared/track.js'
 import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
 import type { ItemType, KartSnapshot, RaceEvent, RaceSettings } from './shared/protocol.js'
 
@@ -37,7 +37,7 @@ function App() {
   const [joinMode, setJoinMode] = useState(() => Boolean(new URLSearchParams(window.location.search).get('room')))
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback>(null)
   const [nameError, setNameError] = useState<string | null>(null)
-  const [showControls, setShowControls] = useState(() => localStorage.getItem('neon-apex-controls-seen') !== '1')
+  const [showControls, setShowControls] = useState(false)
   const [bindings, setBindings] = useState<KeyBindings>(() => loadKeyBindings())
   const [rebinding, setRebinding] = useState<BindingAction | null>(null)
   const [bindingError, setBindingError] = useState<string | null>(null)
@@ -118,8 +118,11 @@ function App() {
     ? latestItemNotice(network.snapshot.events ?? [], network.snapshot.karts, network.playerId, network.snapshot.serverTime)
     : null
   const isHost = network.playerId !== null && network.lobby?.hostId === network.playerId
-  const hasEnoughRacers = (network.lobby?.players.length ?? 0) >= 2
+  const racerCount = network.lobby?.players.filter((player) => player.connected !== false).length ?? 0
+  const minimumRacers = settings.mode === 'knockout' ? 3 : 2
+  const hasEnoughRacers = racerCount >= minimumRacers
   const canStart = isHost && hasEnoughRacers
+  const voteCount = Object.keys(network.lobby?.votes ?? {}).length
   const countdown = network.snapshot?.countdownEndsAt
     ? Math.max(0, Math.ceil((network.snapshot.countdownEndsAt - network.snapshot.serverTime) / 1_000))
     : 0
@@ -202,14 +205,14 @@ function App() {
         {phase === 'lobby' && <a className="mini-brand" href="/" onClick={(event) => { event.preventDefault(); leave() }} aria-label="Leave race and return home">
           <span>NA</span> NEON APEX
         </a>}
-        <div className="room-chip">
+        {phase !== 'lobby' && <div className="room-chip">
           <span>ROOM</span>
           <strong>{network.roomCode}</strong>
           <button type="button" onClick={copyCode} aria-label={copyFeedback === 'code' ? 'Room code copied' : 'Copy room code'}>{copyFeedback === 'code' ? 'COPIED' : 'COPY'}</button>
           <button type="button" onClick={copyInvite} aria-label={copyFeedback === 'invite' ? 'Invite link copied' : 'Copy invite link'}>{copyFeedback === 'invite' ? 'COPIED' : 'LINK'}</button>
           {copyFeedback === 'error' && <span className="copy-status is-error">COPY FAILED</span>}
           <span className="sr-only" aria-live="polite">{copyFeedback === 'code' ? 'Room code copied.' : copyFeedback === 'invite' ? 'Invite link copied.' : copyFeedback === 'error' ? 'Could not copy.' : ''}</span>
-        </div>
+        </div>}
         {phase === 'lobby' && <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>}
         {phase !== 'finished' && network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
           <button className="reconnect-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
@@ -219,60 +222,65 @@ function App() {
       {phase === 'lobby' && (
         <section className="lobby-panel glass-panel" aria-label="Pre-race lobby">
           <div className="lobby-content">
-            <p className="panel-label">PRE-RACE LOBBY</p>
-            <p className="room-invite">Share <strong>{network.roomCode}</strong> with up to three friends.</p>
-            <div className="warmup-note" role="status">
-              <strong>{hasEnoughRacers ? 'Warm-up open' : 'Waiting for another racer'}</strong>
-              <span>{hasEnoughRacers
-                ? isHost ? 'Drive while you wait, or start when ready. The race resets everyone to the grid.' : 'Drive while the host gets ready. The race resets everyone to the grid.'
-                : 'Drive while you wait. Use WASD or arrow keys.'}</span>
+            <div className="lobby-heading">
+              <h2>{isHost ? 'Set up race' : 'Race lobby'}</h2>
+              <span aria-live="polite">{racerCount} / 4 racers</span>
             </div>
-            <p className="sr-only" aria-live="polite">
-              {`${network.lobby.players.length} racers joined. ${hasEnoughRacers ? isHost ? 'You can start the race.' : 'The host can start the race.' : 'Waiting for at least two racers.'}`}
-            </p>
-            <ul className="roster">
-              {network.lobby.players.map((player, index) => (
+            <button className="lobby-invite" type="button" onClick={copyInvite} aria-label="Copy invite link">
+              <span>{copyFeedback === 'invite' ? 'Invite copied' : copyFeedback === 'error' ? 'Copy failed. Try again' : 'Invite friends'}</span>
+              <strong>{network.roomCode}</strong>
+            </button>
+            <span className="sr-only" aria-live="polite">{copyFeedback === 'invite' ? 'Invite link copied.' : copyFeedback === 'error' ? 'Could not copy invite link.' : ''}</span>
+            <ul className="roster" aria-label="Racers">
+              {network.lobby.players.map((player) => (
                 <li key={player.id} className={player.connected === false ? 'is-disconnected' : ''}>
                   <span className="kart-dot" style={{ backgroundColor: `#${player.color.toString(16).padStart(6, '0')}` }} />
                   <strong>{player.name}</strong>
-                  <small>{player.id === network.lobby?.hostId ? 'HOST' : player.connected === false ? 'AWAY' : `P${index + 1}`}</small>
+                  {player.connected === false ? <small>Away</small> : player.id === network.lobby?.hostId ? <small>Host</small> : null}
                 </li>
               ))}
-              {Array.from({ length: 4 - network.lobby.players.length }, (_, index) => <li className="empty-slot" key={`empty-${index}`}>Waiting for racer…</li>)}
             </ul>
 
             <div className="lobby-settings">
-              <div className="settings-heading"><span>RACE SETTINGS</span><small>{isHost ? 'HOST CONTROLS' : 'HOST SELECTS'}</small></div>
-              <label>TRACK
-                <select value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
-                  {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}</option>)}
-                </select>
+              <label htmlFor="race-track">Track</label>
+              <select id="race-track" value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
+                {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}{getTrack(track.id).theme ? ' · Long' : ''}</option>)}
+              </select>
+              {getTrack(settings.trackId).theme && <p className="lobby-hint">10× distance. Try one lap.</p>}
+              {voteCount > 0 && <p className="lobby-hint">{voteCount} {voteCount === 1 ? 'vote' : 'votes'} cast. Most-voted track wins.</p>}
+              <fieldset className="lap-picker" disabled={!isHost}>
+                <legend>Laps</legend>
+                <div>
+                  {[1, 2, 3, 5].map((laps) => <button key={laps} type="button" aria-pressed={settings.laps === laps} onClick={() => client.updateRaceSettings({ ...settings, laps: laps as RaceSettings['laps'] })}>{laps}</button>)}
+                </div>
+              </fieldset>
+              <label className="lobby-items">
+                <span>Items</span>
+                <input type="checkbox" role="switch" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} />
               </label>
-              <p className="room-invite">Lap distance: {Math.round(getTrackLength(getTrack(settings.trackId)))} units{getTrack(settings.trackId).theme ? ' · Endurance circuit · Try 1 lap' : ''}</p>
-              <label>LAPS
-                <select value={settings.laps} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, laps: Number(event.target.value) as RaceSettings['laps'] })}>
-                  {[1, 2, 3, 5].map((laps) => <option key={laps} value={laps}>{laps}</option>)}
-                </select>
-              </label>
-              <label>MODE
-                <select value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
-                  <option value="standard">Standard Race</option>
-                  <option value="knockout">Knockout</option>
-                </select>
-              </label>
-              <label className="toggle-setting"><input type="checkbox" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} /> ITEMS ON</label>
-              <div className="track-votes" aria-label="Track votes">
-                {(network.lobby.trackOptions ?? []).map((track) => <button key={track.id} type="button" className={(network.playerId !== null && network.lobby?.votes?.[network.playerId] === track.id) ? 'voted' : ''} onClick={() => client.voteTrack(track.id)}>{track.name}<small>{Object.values(network.lobby?.votes ?? {}).filter((vote) => vote === track.id).length}</small></button>)}
-              </div>
+              <details className="lobby-options">
+                <summary>More options{settings.mode === 'knockout' ? ' · Knockout' : ''}</summary>
+                <div className="lobby-options-content">
+                  <label htmlFor="race-mode">Race mode</label>
+                  <select id="race-mode" value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
+                    <option value="standard">Standard</option>
+                    <option value="knockout" disabled={racerCount < 3}>Knockout · 3+ racers</option>
+                  </select>
+                  <label htmlFor="track-vote">Your track vote</label>
+                  <select id="track-vote" value={network.lobby.votes?.[network.playerId] ?? ''} onChange={(event) => client.voteTrack(event.target.value)}>
+                    <option value="" disabled>Choose a track</option>
+                    {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name} · {Object.values(network.lobby?.votes ?? {}).filter((vote) => vote === track.id).length} votes</option>)}
+                  </select>
+                </div>
+              </details>
             </div>
           </div>
           <div className="lobby-actions">
-            {isHost ? (
-              <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>
-                {canStart ? 'Start race' : 'Waiting for one more racer'} <span aria-hidden="true">→</span>
-              </button>
-            ) : <p className="waiting-message">Waiting for the host to start…</p>}
-            <button className="text-button" type="button" onClick={leave}>Leave room</button>
+            <p className="lobby-status" role="status">{!hasEnoughRacers ? `Waiting for ${minimumRacers - racerCount} more ${minimumRacers - racerCount === 1 ? 'racer' : 'racers'}` : !isHost ? 'Waiting for the host' : ''}</p>
+            <div className="lobby-action-row">
+              <button className="text-button" type="button" onClick={leave}>Leave</button>
+              <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>Start race <span aria-hidden="true">→</span></button>
+            </div>
           </div>
         </section>
       )}
@@ -343,7 +351,7 @@ function App() {
       {itemNotice && <div className="item-notice" role="status">{itemNotice}</div>}
       {network.reaction && <div className="reaction-toast" role="status"><strong>{network.reaction.name}</strong> {reactionLabel(network.reaction.reaction)}</div>}
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
-      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>{[bindings.accelerate, bindings.left, bindings.reverse, bindings.right].map(formatBinding).join(' / ')}</kbd> / <kbd>ARROWS</kbd> DRIVE</span><span><kbd>{formatBinding(bindings.brake)}</kbd> BRAKE</span><span><kbd>{formatBinding(bindings.reset)}</kbd> RESET</span>{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>{formatBinding(bindings.item)}</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
+      {phase !== 'finished' && <footer className="controls-bar"><span><kbd>{[bindings.accelerate, bindings.left, bindings.reverse, bindings.right].map(formatBinding).join(' / ')}</kbd> / <kbd>ARROWS</kbd> DRIVE</span>{phase !== 'lobby' && <><span><kbd>{formatBinding(bindings.brake)}</kbd> BRAKE</span><span><kbd>{formatBinding(bindings.reset)}</kbd> RESET</span></>}{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>{formatBinding(bindings.item)}</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
   )
 }

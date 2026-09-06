@@ -4,7 +4,7 @@ import { GameCanvas } from './game/GameCanvas.js'
 import { Minimap } from './game/Minimap.js'
 import { bindingConflict, DEFAULT_KEY_BINDINGS, loadKeyBindings, saveKeyBindings, type BindingAction, type KeyBindings } from './game/input.js'
 import { GameClient, type NetworkState } from './network/client.js'
-import { getTrack } from './shared/track.js'
+import { getTrack, getTrackBounds } from './shared/track.js'
 import { DEFAULT_RACE_SETTINGS } from './shared/constants.js'
 import type { ItemType, KartSnapshot, RaceEvent, RaceSettings } from './shared/protocol.js'
 
@@ -242,11 +242,18 @@ function App() {
             </ul>
 
             <div className="lobby-settings">
-              <label htmlFor="race-track">Track</label>
-              <select id="race-track" value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
-                {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}{getTrack(track.id).theme ? ' · Long' : ''}</option>)}
-              </select>
-              {getTrack(settings.trackId).theme && <p className="lobby-hint">10× distance. Try one lap.</p>}
+              {!isHost && <p className="lobby-hint">The host sets the race. You can vote below.</p>}
+              <div className="track-selection">
+                <TrackPreview trackId={settings.trackId} />
+                <div className="track-selection-fields">
+                  <label htmlFor="race-track">Track</label>
+                  <select id="race-track" value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
+                    {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}{getTrack(track.id).theme ? ' · Long' : ''}</option>)}
+                  </select>
+                  <p className="lobby-hint">{getTrack(settings.trackId).theme ? 'Endurance circuit. 10× distance.' : 'Short circuit'}</p>
+                </div>
+              </div>
+              {getTrack(settings.trackId).theme && <p className="lobby-hint">One lap is a good place to start.</p>}
               {voteCount > 0 && <p className="lobby-hint">{voteCount} {voteCount === 1 ? 'vote' : 'votes'} cast. Most-voted track wins.</p>}
               <fieldset className="lap-picker" disabled={!isHost}>
                 <legend>Laps</legend>
@@ -255,11 +262,11 @@ function App() {
                 </div>
               </fieldset>
               <label className="lobby-items">
-                <span>Items</span>
+                <span>Items<small>Pick up boosts and power-ups</small></span>
                 <input type="checkbox" role="switch" checked={settings.itemsEnabled} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, itemsEnabled: event.target.checked })} />
               </label>
               <details className="lobby-options">
-                <summary>More options{settings.mode === 'knockout' ? ' · Knockout' : ''}</summary>
+                <summary>Mode &amp; track voting<span>{settings.mode === 'knockout' ? 'Knockout' : 'Standard'}</span></summary>
                 <div className="lobby-options-content">
                   <label htmlFor="race-mode">Race mode</label>
                   <select id="race-mode" value={settings.mode} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, mode: event.target.value as RaceSettings['mode'] })}>
@@ -276,10 +283,10 @@ function App() {
             </div>
           </div>
           <div className="lobby-actions">
-            <p className="lobby-status" role="status">{!hasEnoughRacers ? `Waiting for ${minimumRacers - racerCount} more ${minimumRacers - racerCount === 1 ? 'racer' : 'racers'}` : !isHost ? 'Waiting for the host' : ''}</p>
+            <p className="lobby-status" role="status">{!hasEnoughRacers ? `Waiting for ${minimumRacers - racerCount} more ${minimumRacers - racerCount === 1 ? 'racer' : 'racers'}` : !isHost ? 'Waiting for the host' : 'Everyone’s in. Ready when you are.'}</p>
             <div className="lobby-action-row">
               <button className="text-button" type="button" onClick={leave}>Leave</button>
-              <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>Start race <span aria-hidden="true">→</span></button>
+              <button className="primary-button" type="button" disabled={!canStart} onClick={() => client.startRace()}>Start race <span className="start-flag" aria-hidden="true" /></button>
             </div>
           </div>
         </section>
@@ -353,6 +360,22 @@ function App() {
       {phase !== 'lobby' && <div className="quick-reactions" aria-label="Quick reactions"><button type="button" onClick={() => client.sendReaction('nice')}>NICE!</button><button type="button" onClick={() => client.sendReaction('oops')}>OOPS</button><button type="button" onClick={() => client.sendReaction('rematch')}>REMATCH?</button></div>}
       {phase !== 'finished' && <footer className="controls-bar"><span><kbd>{[bindings.accelerate, bindings.left, bindings.reverse, bindings.right].map(formatBinding).join(' / ')}</kbd> / <kbd>ARROWS</kbd> DRIVE</span>{phase !== 'lobby' && <><span><kbd>{formatBinding(bindings.brake)}</kbd> BRAKE</span><span><kbd>{formatBinding(bindings.reset)}</kbd> RESET</span></>}{phase !== 'lobby' && settings.itemsEnabled && <span><kbd>{formatBinding(bindings.item)}</kbd> ITEM</span>}<button className="controls-toggle" type="button" onClick={() => setShowControls(true)}>EDIT KEYS</button></footer>}
     </main>
+  )
+}
+
+function TrackPreview({ trackId }: { trackId: string }) {
+  const track = getTrack(trackId)
+  const bounds = getTrackBounds(track)
+  const width = Math.max(1, bounds.maxX - bounds.minX)
+  const height = Math.max(1, bounds.maxZ - bounds.minZ)
+  const scale = 80 / Math.max(width, height)
+  const points = track.points.map((point) => `${50 + (point.x - (bounds.minX + bounds.maxX) / 2) * scale},${50 - (point.z - (bounds.minZ + bounds.maxZ) / 2) * scale}`).join(' ')
+
+  return (
+    <svg className="track-preview" viewBox="0 0 100 100" role="img" aria-label={`${track.name} circuit outline`}>
+      <polygon className="track-preview-road" points={points} />
+      <polygon className="track-preview-line" points={points} />
+    </svg>
   )
 }
 

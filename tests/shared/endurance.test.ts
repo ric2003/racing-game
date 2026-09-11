@@ -87,8 +87,23 @@ describe('endurance circuits', () => {
           expect(mesh.geometry.groups).toHaveLength(0)
           expect(mesh.geometry.getAttribute('color').count).toBe(mesh.geometry.getAttribute('position').count)
         }
-        const scenery = visual.group.children.filter((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)
-        expect(scenery.reduce((sum, mesh) => sum + mesh.count, 0)).toBe(1400)
+        const scenery: THREE.InstancedMesh[] = []
+        visual.group.traverse((child) => {
+          if (child instanceof THREE.InstancedMesh) scenery.push(child)
+        })
+        expect(scenery.reduce((sum, mesh) => sum + mesh.count, 0)).toBeGreaterThan(1000)
+        const sectors = new Set<number>()
+        const matrix = new THREE.Matrix4()
+        const position = new THREE.Vector3()
+        for (const mesh of scenery) {
+          for (let index = 0; index < mesh.count; index++) {
+            mesh.getMatrixAt(index, matrix)
+            position.setFromMatrixPosition(matrix)
+            const projection = nearestTrackPoint(position, track)
+            sectors.add(Math.floor(projection.segmentIndex / track.points.length * 12))
+          }
+        }
+        expect(sectors.size).toBe(12)
         expect(scenery.every((mesh) => mesh.boundingSphere !== null && mesh.boundingSphere.radius < 400)).toBe(true)
       } finally {
         visual.dispose()

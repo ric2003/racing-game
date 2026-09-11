@@ -42,7 +42,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   const scene = new THREE.Scene()
-  const skyColor = track.theme === 'desert' ? 0xf0c995 : track.theme === 'harbor' ? 0x98bed2 : 0x8fd4e8
+  const skyColor = track.theme === 'desert' ? 0xf0c995 : track.theme === 'harbor' ? 0x98bed2 : track.theme === 'forest' ? 0xb8d3c6 : 0x8fd4e8
   scene.background = new THREE.Color(skyColor)
   scene.fog = new THREE.Fog(skyColor, 90, 260)
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 340)
@@ -65,7 +65,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   const centerZ = (bounds.minZ + bounds.maxZ) / 2
   const groundRadius = track.theme ? Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) / 2 + 120 : 185
   const groundGeometry = new THREE.CircleGeometry(groundRadius, 72)
-  const groundMaterial = new THREE.MeshStandardMaterial({ color: track.theme === 'desert' ? 0xdab47b : track.theme === 'harbor' ? 0x668a95 : 0x4baf69, roughness: 1 })
+  const groundMaterial = new THREE.MeshStandardMaterial({ color: track.theme === 'desert' ? 0xdab47b : track.theme === 'harbor' ? 0x668a95 : track.theme === 'forest' ? 0x66845a : 0x4baf69, roughness: 1 })
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
   ground.rotation.x = -Math.PI / 2
   ground.position.set(track.theme ? centerX : 0, -0.09, track.theme ? centerZ : 0)

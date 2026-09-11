@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { createLongTrackScenery } from './track-scenery.js'
 import type { HazardSnapshot, ItemBoxSnapshot, OilSlickSnapshot } from '../shared/protocol.js'
 import { DEFAULT_TRACK, nearestTrackPoint, type TrackDefinition } from '../shared/track.js'
 import { TRACK_WIDTH } from '../shared/constants.js'
@@ -97,6 +98,15 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   leftCurb.receiveShadow = true
   rightCurb.receiveShadow = true
   group.add(road, leftCurb, rightCurb)
+  const shoulderGeometry = track.theme ? createStripGeometry(track, TRACK_WIDTH / 2 + 2.5, -TRACK_WIDTH / 2 - 2.5, 0) : null
+  const shoulderMaterial = new THREE.MeshStandardMaterial({ color: track.theme === 'forest' ? 0x8a8461 : track.theme === 'harbor' ? 0x8a9396 : 0xc39662, roughness: 1 })
+  if (shoulderGeometry) {
+    const shoulder = new THREE.Mesh(shoulderGeometry, shoulderMaterial)
+    shoulder.renderOrder = -1
+    shoulder.receiveShadow = true
+    group.add(shoulder)
+  }
+
 
   const startLine = new THREE.Group()
   startLine.name = 'start-line'
@@ -214,7 +224,9 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   const crownMaterial = new THREE.MeshStandardMaterial({ color: harbor ? 0xcf684b : desert ? 0xd49b67 : 0x2ca66f, roughness: 0.95 })
   const random = seededRandom(0x4e454f4e)
   const sceneryInstances: THREE.InstancedMesh[] = []
-  const sceneryCount = track.theme ? 700 : 70
+  const sceneryCount = track.theme ? 0 : 70
+  const longScenery = track.theme ? createLongTrackScenery(track) : null
+  if (longScenery) group.add(longScenery.group)
   const matrix = new THREE.Matrix4()
   // Short batches let the camera cull scenery on distant sections of long circuits.
   for (let batch = 0; batch < sceneryCount; batch += 50) {
@@ -311,6 +323,9 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
       }
     },
     dispose: () => {
+      shoulderGeometry?.dispose()
+      shoulderMaterial.dispose()
+      longScenery?.dispose()
       roadGeometry.dispose()
       roadMaterial.dispose()
       leftCurbGeometry.dispose()

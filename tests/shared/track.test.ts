@@ -178,7 +178,7 @@ describe('technical track geometry', () => {
     }
   })
 
-  it('keeps a moving barrier visible and follows its authoritative position', () => {
+  it('keeps the suspended ball visible and follows its authoritative position', () => {
     const track = TRACKS[0]
     const visual = createTrackMesh(track)
     try {
@@ -189,8 +189,11 @@ describe('technical track geometry', () => {
       visual.update(1, 100, [], [snapshot], [])
 
       expect(rendered.visible).toBe(true)
-      expect(rendered.position.x).toBeCloseTo(snapshot.x)
-      expect(rendered.position.z).toBeCloseTo(snapshot.z)
+      visual.group.updateMatrixWorld(true)
+      const ball = rendered.getObjectByName('suspended-cannonball')!
+      const position = ball.getWorldPosition(new THREE.Vector3())
+      expect(position.x).toBeCloseTo(snapshot.x)
+      expect(position.z).toBeCloseTo(snapshot.z)
     } finally {
       visual.dispose()
     }

@@ -241,7 +241,7 @@ function App() {
               ))}
             </ul>
 
-            <div className="lobby-settings">
+            <div className="lobby-settings" data-driving-menu>
               {!isHost && <p className="lobby-hint">The host sets the race. You can vote below.</p>}
               <div className="track-selection">
                 <TrackPreview trackId={settings.trackId} />

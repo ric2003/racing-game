@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import type { HazardSnapshot, ItemBoxSnapshot, KartSnapshot, OilSlickSnapshot, RaceEvent } from '../shared/protocol.js'
+import { loadModels, type ModelLibrary } from './models.js'
+import type { HazardSnapshot, ItemBoxSnapshot, KartSnapshot, OilSlickSnapshot, RaceEvent, RacePhase } from '../shared/protocol.js'
 import { createKartMesh, type KartVisual } from './kart-mesh.js'
 import { createTrackMesh } from './track-mesh.js'
 import { DEFAULT_TRACK, getTrackBounds, type TrackDefinition } from '../shared/track.js'
@@ -12,6 +13,8 @@ export interface RenderKart extends KartSnapshot {
 
 export interface TrackRenderState {
   serverTime: number
+  phase?: RacePhase
+  countdownEndsAt?: number | null
   itemBoxes?: ItemBoxSnapshot[]
   hazards?: HazardSnapshot[]
   oilSlicks?: OilSlickSnapshot[]
@@ -53,6 +56,8 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   sun.position.set(-50, 75, -40)
   sun.castShadow = true
   sun.shadow.mapSize.set(1024, 1024)
+  sun.shadow.normalBias = 0.04
+  sun.shadow.bias = -0.0003
   sun.shadow.camera.left = -125
   sun.shadow.camera.right = 125
   sun.shadow.camera.top = 125
@@ -71,10 +76,31 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   ground.position.set(track.theme ? centerX : 0, -0.09, track.theme ? centerZ : 0)
   ground.receiveShadow = true
   scene.add(ground)
-  const trackVisual = createTrackMesh(track)
+  let trackVisual = createTrackMesh(track)
   scene.add(trackVisual.group)
 
   const kartVisuals = new Map<string, KartVisual>()
+  let models: ModelLibrary | undefined
+  let disposed = false
+  void loadModels().then(loaded => {
+    if (disposed) {
+      loaded.dispose()
+      return
+    }
+    models = loaded
+    const nextTrack = createTrackMesh(track, models)
+    scene.remove(trackVisual.group)
+    trackVisual.dispose()
+    trackVisual = nextTrack
+    scene.add(trackVisual.group)
+    for (const visual of kartVisuals.values()) {
+      scene.remove(visual.group)
+      visual.dispose()
+    }
+    kartVisuals.clear()
+  }).catch(error => {
+    console.warn('Could not load racing models; using built-in visuals.', error)
+  })
   const activeKartIds = new Set<string>()
   const cameraPosition = new THREE.Vector3()
   const cameraLookAt = new THREE.Vector3()
@@ -146,6 +172,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
     elapsedSeconds += delta
     const serverTime = trackState?.serverTime ?? performance.now()
     trackVisual.update(elapsedSeconds, serverTime, trackState?.itemBoxes, trackState?.hazards, trackState?.oilSlicks)
+    trackVisual.updateLights?.(trackState?.phase, trackState?.countdownEndsAt, serverTime)
     activeKartIds.clear()
     for (const kart of karts) activeKartIds.add(kart.id)
     for (const [id, visual] of kartVisuals) {
@@ -158,7 +185,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
     for (const kart of karts) {
       let visual = kartVisuals.get(kart.id)
       if (!visual) {
-        visual = createKartMesh(kart.color)
+        visual = createKartMesh(kart.color, models)
         kartVisuals.set(kart.id, visual)
         scene.add(visual.group)
       }
@@ -215,6 +242,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
     render,
     resize,
     dispose: () => {
+      disposed = true
       renderer.setAnimationLoop(null)
       for (const visual of kartVisuals.values()) visual.dispose()
       kartVisuals.clear()
@@ -224,6 +252,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       }
       transientEffects.length = 0
       trackVisual.dispose()
+      models?.dispose()
       groundGeometry.dispose()
       groundMaterial.dispose()
       renderer.dispose()

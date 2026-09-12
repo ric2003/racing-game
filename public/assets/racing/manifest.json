@@ -1,0 +1,1410 @@
+{
+  "units": "meters",
+  "car_reference_dimensions": [
+    5.3,
+    2.78,
+    1.68
+  ],
+  "assets": [
+    {
+      "id": "start_finish_gantry",
+      "category": "race",
+      "description": "12 m span; blank sign; five independently addressable lamps",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -6.650000095367432,
+          -0.8999999761581421,
+          0.0
+        ],
+        "max": [
+          6.650000095367432,
+          0.8999999761581421,
+          6.675000190734863
+        ]
+      },
+      "triangles": 1084,
+      "materials": [
+        "concrete",
+        "graphite",
+        "papaya",
+        "signal_red",
+        "steel",
+        "white"
+      ],
+      "animated_nodes": [
+        "start_finish_gantry__start_light_01",
+        "start_finish_gantry__start_light_02",
+        "start_finish_gantry__start_light_03",
+        "start_finish_gantry__start_light_04",
+        "start_finish_gantry__start_light_05"
+      ],
+      "bytes": 78936,
+      "file": "glb/start_finish_gantry.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tire_stack_black",
+      "category": "race",
+      "description": "Stacked hollow low-poly safety tires",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.550000011920929,
+          -0.550000011920929,
+          0.0
+        ],
+        "max": [
+          0.550000011920929,
+          0.550000011920929,
+          1.0199999809265137
+        ]
+      },
+      "triangles": 576,
+      "materials": [
+        "rubber"
+      ],
+      "animated_nodes": [],
+      "bytes": 30580,
+      "file": "glb/tire_stack_black.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tire_stack_red_white",
+      "category": "race",
+      "description": "Stacked hollow low-poly safety tires",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.550000011920929,
+          -0.550000011920929,
+          0.0
+        ],
+        "max": [
+          0.550000011920929,
+          0.550000011920929,
+          1.0199999809265137
+        ]
+      },
+      "triangles": 576,
+      "materials": [
+        "red",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 31384,
+      "file": "glb/tire_stack_red_white.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tire_wall",
+      "category": "race",
+      "description": "Stacked hollow low-poly safety tires",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.7000000476837158,
+          -0.550000011920929,
+          0.0
+        ],
+        "max": [
+          1.7000000476837158,
+          0.550000011920929,
+          1.0199999809265137
+        ]
+      },
+      "triangles": 1728,
+      "materials": [
+        "red",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 90312,
+      "file": "glb/tire_wall.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "chevron_board_left",
+      "category": "race",
+      "description": "High-contrast double chevron; faces +Z in glTF",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.850000023841858,
+          -0.375,
+          0.0
+        ],
+        "max": [
+          1.850000023841858,
+          0.375,
+          2.7249999046325684
+        ]
+      },
+      "triangles": 164,
+      "materials": [
+        "graphite",
+        "steel",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 15420,
+      "file": "glb/chevron_board_left.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "chevron_board_right",
+      "category": "race",
+      "description": "High-contrast double chevron; faces +Z in glTF",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.850000023841858,
+          -0.375,
+          0.0
+        ],
+        "max": [
+          1.850000023841858,
+          0.375,
+          2.7249999046325684
+        ]
+      },
+      "triangles": 164,
+      "materials": [
+        "graphite",
+        "steel",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 15424,
+      "file": "glb/chevron_board_right.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "concrete_barrier_concrete",
+      "category": "race",
+      "description": "4 m straight module, flush ends",
+      "sockets_blender": {
+        "start": [
+          -2,
+          0,
+          0
+        ],
+        "end": [
+          2,
+          0,
+          0
+        ]
+      },
+      "bounds_blender": {
+        "min": [
+          -2.0,
+          -0.41999998688697815,
+          0.0
+        ],
+        "max": [
+          2.0,
+          0.41999998688697815,
+          1.0499999523162842
+        ]
+      },
+      "triangles": 64,
+      "materials": [
+        "concrete",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 6636,
+      "file": "glb/concrete_barrier_concrete.glb",
+      "sockets_gltf": {
+        "start": [
+          -2,
+          0,
+          0
+        ],
+        "end": [
+          2,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "concrete_barrier_papaya",
+      "category": "race",
+      "description": "4 m straight module, flush ends",
+      "sockets_blender": {
+        "start": [
+          -2,
+          0,
+          0
+        ],
+        "end": [
+          2,
+          0,
+          0
+        ]
+      },
+      "bounds_blender": {
+        "min": [
+          -2.0,
+          -0.41999998688697815,
+          0.0
+        ],
+        "max": [
+          2.0,
+          0.41999998688697815,
+          1.0499999523162842
+        ]
+      },
+      "triangles": 64,
+      "materials": [
+        "concrete",
+        "papaya",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 7552,
+      "file": "glb/concrete_barrier_papaya.glb",
+      "sockets_gltf": {
+        "start": [
+          -2,
+          0,
+          0
+        ],
+        "end": [
+          2,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "guardrail_straight_4m",
+      "category": "race",
+      "description": "4 m module along X",
+      "sockets_blender": {
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          4,
+          0,
+          0
+        ]
+      },
+      "bounds_blender": {
+        "min": [
+          -0.06499999761581421,
+          -0.07999999821186066,
+          0.0
+        ],
+        "max": [
+          4.065000057220459,
+          0.07999999821186066,
+          1.1050000190734863
+        ]
+      },
+      "triangles": 76,
+      "materials": [
+        "graphite",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 7204,
+      "file": "glb/guardrail_straight_4m.glb",
+      "sockets_gltf": {
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          4,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "guardrail_corner_90",
+      "category": "race",
+      "description": "Quarter circle, radius 4 m; enters +X and exits +Y",
+      "sockets_blender": {
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          4,
+          4,
+          0
+        ]
+      },
+      "bounds_blender": {
+        "min": [
+          -0.06499999761581421,
+          -0.07999999821186066,
+          0.0
+        ],
+        "max": [
+          4.045000076293945,
+          4.0,
+          1.1050000190734863
+        ]
+      },
+      "triangles": 172,
+      "materials": [
+        "graphite",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 14440,
+      "file": "glb/guardrail_corner_90.glb",
+      "sockets_gltf": {
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          4,
+          0,
+          -4
+        ]
+      }
+    },
+    {
+      "id": "guardrail_end",
+      "category": "race",
+      "description": "2 m end terminal; connects at origin and tapers toward +X",
+      "sockets_blender": {
+        "start": [
+          0,
+          0,
+          0
+        ]
+      },
+      "bounds_blender": {
+        "min": [
+          0.0,
+          -0.25,
+          0.0
+        ],
+        "max": [
+          2.0,
+          0.25,
+          1.1050000190734863
+        ]
+      },
+      "triangles": 80,
+      "materials": [
+        "graphite",
+        "papaya",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 9088,
+      "file": "glb/guardrail_end.glb",
+      "sockets_gltf": {
+        "start": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "traffic_cone_papaya",
+      "category": "race",
+      "description": "Broad reflective bands for chase-camera visibility",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.3400000035762787,
+          -0.3400000035762787,
+          0.0
+        ],
+        "max": [
+          0.3400000035762787,
+          0.3400000035762787,
+          0.9399999380111694
+        ]
+      },
+      "triangles": 176,
+      "materials": [
+        "papaya",
+        "rubber",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 14360,
+      "file": "glb/traffic_cone_papaya.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "traffic_cone_yellow",
+      "category": "race",
+      "description": "Broad reflective bands for chase-camera visibility",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.3400000035762787,
+          -0.3400000035762787,
+          0.0
+        ],
+        "max": [
+          0.3400000035762787,
+          0.3400000035762787,
+          0.9399999380111694
+        ]
+      },
+      "triangles": 176,
+      "materials": [
+        "rubber",
+        "white",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 14360,
+      "file": "glb/traffic_cone_yellow.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tree_pine",
+      "category": "forest",
+      "description": "Tiered evergreen with broad silhouette",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.600000023841858,
+          -1.600000023841858,
+          0.0
+        ],
+        "max": [
+          1.600000023841858,
+          1.600000023841858,
+          5.800000190734863
+        ]
+      },
+      "triangles": 70,
+      "materials": [
+        "pine",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 7336,
+      "file": "glb/tree_pine.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tree_broadleaf",
+      "category": "forest",
+      "description": "Rounded asymmetric crown",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -2.045866012573242,
+          -1.329308032989502,
+          0.0
+        ],
+        "max": [
+          2.252150535583496,
+          1.3296184539794922,
+          5.751709938049316
+        ]
+      },
+      "triangles": 160,
+      "materials": [
+        "leaf",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 14640,
+      "file": "glb/tree_broadleaf.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "tree_birch",
+      "category": "forest",
+      "description": "Pale forked trunk and light green crown",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.3951771259307861,
+          -0.783290684223175,
+          0.0
+        ],
+        "max": [
+          1.5191311836242676,
+          1.0045199394226074,
+          5.8744425773620605
+        ]
+      },
+      "triangles": 168,
+      "materials": [
+        "leaf_light",
+        "white",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 15816,
+      "file": "glb/tree_birch.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "boulder_01",
+      "category": "forest",
+      "description": "Faceted stone, flat ground contact",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.228765845298767,
+          -0.9176075458526611,
+          0.0
+        ],
+        "max": [
+          1.233075499534607,
+          0.9949719905853271,
+          1.8270666599273682
+        ]
+      },
+      "triangles": 20,
+      "materials": [
+        "stone"
+      ],
+      "animated_nodes": [],
+      "bytes": 3456,
+      "file": "glb/boulder_01.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "boulder_02",
+      "category": "forest",
+      "description": "Faceted stone, flat ground contact",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.7883051037788391,
+          -0.7470917701721191,
+          0.0
+        ],
+        "max": [
+          0.8961021900177002,
+          0.7334721088409424,
+          2.519031286239624
+        ]
+      },
+      "triangles": 20,
+      "materials": [
+        "stone"
+      ],
+      "animated_nodes": [],
+      "bytes": 3456,
+      "file": "glb/boulder_02.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "boulder_03",
+      "category": "forest",
+      "description": "Faceted stone, flat ground contact",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.6855841875076294,
+          -1.0827577114105225,
+          2.9802322387695312e-08
+        ],
+        "max": [
+          1.9546359777450562,
+          1.0858821868896484,
+          1.2456783056259155
+        ]
+      },
+      "triangles": 20,
+      "materials": [
+        "stone"
+      ],
+      "animated_nodes": [],
+      "bytes": 3480,
+      "file": "glb/boulder_03.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "stacked_logs",
+      "category": "forest",
+      "description": "Six cut logs in a triangular pile",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.6629999876022339,
+          -0.8862959146499634,
+          0.0
+        ],
+        "max": [
+          1.6629999876022339,
+          0.8862959146499634,
+          1.5600001811981201
+        ]
+      },
+      "triangles": 648,
+      "materials": [
+        "cut_wood",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 40808,
+      "file": "glb/stacked_logs.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "ranger_cabin",
+      "category": "forest",
+      "description": "Small timber cabin with porch and chimney",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -2.5999999046325684,
+          -2.9499998092651367,
+          0.0
+        ],
+        "max": [
+          2.5999999046325684,
+          2.1500000953674316,
+          4.199999809265137
+        ]
+      },
+      "triangles": 244,
+      "materials": [
+        "cut_wood",
+        "pine",
+        "stone",
+        "white",
+        "window",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 22860,
+      "file": "glb/ranger_cabin.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "sandstone_mesa",
+      "category": "desert",
+      "description": "Layered flat-shaded sandstone",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -2.632305383682251,
+          -1.8000000715255737,
+          0.0
+        ],
+        "max": [
+          2.632305383682251,
+          1.621744155883789,
+          3.5
+        ]
+      },
+      "triangles": 72,
+      "materials": [
+        "sandstone",
+        "sandstone_light"
+      ],
+      "animated_nodes": [],
+      "bytes": 6804,
+      "file": "glb/sandstone_mesa.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "sandstone_spire",
+      "category": "desert",
+      "description": "Layered flat-shaded sandstone",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.1699135303497314,
+          -1.0,
+          0.0
+        ],
+        "max": [
+          1.1699135303497314,
+          0.9009689688682556,
+          4.300000190734863
+        ]
+      },
+      "triangles": 72,
+      "materials": [
+        "sandstone",
+        "sandstone_light"
+      ],
+      "animated_nodes": [],
+      "bytes": 6808,
+      "file": "glb/sandstone_spire.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "sandstone_arch",
+      "category": "desert",
+      "description": "Large readable natural arch",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -2.949442148208618,
+          -0.9261777997016907,
+          0.0
+        ],
+        "max": [
+          2.949442148208618,
+          0.9261851906776428,
+          4.254329800605774
+        ]
+      },
+      "triangles": 100,
+      "materials": [
+        "sandstone",
+        "sandstone_light"
+      ],
+      "animated_nodes": [],
+      "bytes": 10256,
+      "file": "glb/sandstone_arch.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "cactus_saguaro",
+      "category": "desert",
+      "description": "Large upright cactus arms; no tiny spines",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.1800000667572021,
+          -0.25999999046325684,
+          0.0
+        ],
+        "max": [
+          1.1299999952316284,
+          0.2443200796842575,
+          4.0037641525268555
+        ]
+      },
+      "triangles": 204,
+      "materials": [
+        "cactus"
+      ],
+      "animated_nodes": [],
+      "bytes": 16296,
+      "file": "glb/cactus_saguaro.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "cactus_cluster",
+      "category": "desert",
+      "description": "Large upright cactus arms; no tiny spines",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.8799999952316284,
+          -0.25999999046325684,
+          0.0
+        ],
+        "max": [
+          0.7300000190734863,
+          0.6800000071525574,
+          2.8037641048431396
+        ]
+      },
+      "triangles": 156,
+      "materials": [
+        "cactus"
+      ],
+      "animated_nodes": [],
+      "bytes": 12548,
+      "file": "glb/cactus_cluster.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "utility_pole",
+      "category": "desert",
+      "description": "Pole with crossarm and broad insulators; no long attached wires",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.2000000476837158,
+          -0.17000000178813934,
+          0.0
+        ],
+        "max": [
+          1.2000000476837158,
+          0.17000000178813934,
+          7.0
+        ]
+      },
+      "triangles": 124,
+      "materials": [
+        "white",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 10000,
+      "file": "glb/utility_pole.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "abandoned_gas_station",
+      "category": "desert",
+      "description": "Weathered roadside shop, canopy and two pumps",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -4.5,
+          -3.5,
+          0.0
+        ],
+        "max": [
+          4.5,
+          3.5,
+          3.940000057220459
+        ]
+      },
+      "triangles": 428,
+      "materials": [
+        "concrete",
+        "graphite",
+        "red",
+        "rubber",
+        "rust",
+        "sandstone_light",
+        "white",
+        "window",
+        "wood"
+      ],
+      "animated_nodes": [],
+      "bytes": 39088,
+      "file": "glb/abandoned_gas_station.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "shipping_container_red",
+      "category": "harbor",
+      "description": "12 x 2.8 x 3 m container with chunky corrugations",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -6.0,
+          -1.4649999141693115,
+          0.0
+        ],
+        "max": [
+          6.100311279296875,
+          1.4649999141693115,
+          3.0
+        ]
+      },
+      "triangles": 388,
+      "materials": [
+        "red",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 29224,
+      "file": "glb/shipping_container_red.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "shipping_container_blue",
+      "category": "harbor",
+      "description": "12 x 2.8 x 3 m container with chunky corrugations",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -6.0,
+          -1.4649999141693115,
+          0.0
+        ],
+        "max": [
+          6.100311279296875,
+          1.4649999141693115,
+          3.0
+        ]
+      },
+      "triangles": 388,
+      "materials": [
+        "blue",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 29244,
+      "file": "glb/shipping_container_blue.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "shipping_container_papaya",
+      "category": "harbor",
+      "description": "12 x 2.8 x 3 m container with chunky corrugations",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -6.0,
+          -1.4649999141693115,
+          0.0
+        ],
+        "max": [
+          6.100311279296875,
+          1.4649999141693115,
+          3.0
+        ]
+      },
+      "triangles": 388,
+      "materials": [
+        "papaya",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 29236,
+      "file": "glb/shipping_container_papaya.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "warehouse",
+      "category": "harbor",
+      "description": "Broad shed with two cargo doors",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -9.350000381469727,
+          -6.460000038146973,
+          0.0
+        ],
+        "max": [
+          9.350000381469727,
+          6.349999904632568,
+          9.0
+        ]
+      },
+      "triangles": 296,
+      "materials": [
+        "blue",
+        "concrete",
+        "graphite",
+        "steel",
+        "white",
+        "window",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 26632,
+      "file": "glb/warehouse.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "dock_crane",
+      "category": "harbor",
+      "description": "Gantry crane with separate hook assembly",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -4.599999904632568,
+          -3.25,
+          0.0
+        ],
+        "max": [
+          9.068168640136719,
+          3.25,
+          13.036335945129395
+        ]
+      },
+      "triangles": 484,
+      "materials": [
+        "graphite",
+        "papaya",
+        "steel",
+        "window",
+        "yellow"
+      ],
+      "animated_nodes": [
+        "dock_crane__hook_block",
+        "dock_crane__hook"
+      ],
+      "bytes": 40108,
+      "file": "glb/dock_crane.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "cargo_ship",
+      "category": "harbor",
+      "description": "Distant static cargo ship; waterline at ground origin",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -16.0,
+          -4.300000190734863,
+          0.0
+        ],
+        "max": [
+          17.0,
+          4.300000190734863,
+          11.30000114440918
+        ]
+      },
+      "triangles": 196,
+      "materials": [
+        "blue",
+        "graphite",
+        "papaya",
+        "red",
+        "steel",
+        "white",
+        "window"
+      ],
+      "animated_nodes": [],
+      "bytes": 19608,
+      "file": "glb/cargo_ship.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "item_pickup_crate",
+      "category": "gameplay",
+      "description": "Cyan framed crate with large diamond item marks",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.7250000238418579,
+          -0.7250000238418579,
+          0.0
+        ],
+        "max": [
+          0.7250000238418579,
+          0.7250000238418579,
+          1.4000000953674316
+        ]
+      },
+      "triangles": 316,
+      "materials": [
+        "graphite",
+        "pickup",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 27276,
+      "file": "glb/item_pickup_crate.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "boost_pad",
+      "category": "gameplay",
+      "description": "Low ramp with three forward arrows; 3.4 x 5 m",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.7000000476837158,
+          -2.5,
+          0.0
+        ],
+        "max": [
+          1.7000000476837158,
+          2.5,
+          0.14750000834465027
+        ]
+      },
+      "triangles": 48,
+      "materials": [
+        "boost",
+        "graphite"
+      ],
+      "animated_nodes": [],
+      "bytes": 5580,
+      "file": "glb/boost_pad.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "oil_barrel_blue",
+      "category": "gameplay",
+      "description": "Broad steel barrel with two reinforcing hoops",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.3799999952316284,
+          -0.37047260999679565,
+          0.0
+        ],
+        "max": [
+          0.3799999952316284,
+          0.37047260999679565,
+          1.0750000476837158
+        ]
+      },
+      "triangles": 752,
+      "materials": [
+        "blue",
+        "graphite",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 53312,
+      "file": "glb/oil_barrel_blue.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "oil_barrel_rust",
+      "category": "gameplay",
+      "description": "Broad steel barrel with two reinforcing hoops",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.3799999952316284,
+          -0.37047260999679565,
+          0.0
+        ],
+        "max": [
+          0.3799999952316284,
+          0.37047260999679565,
+          1.0750000476837158
+        ]
+      },
+      "triangles": 752,
+      "materials": [
+        "graphite",
+        "rust",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 53316,
+      "file": "glb/oil_barrel_rust.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "grandstand_small",
+      "category": "atmosphere",
+      "description": "Three broad seating tiers with stairs",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -3.945000171661377,
+          -2.0,
+          0.0
+        ],
+        "max": [
+          3.945000171661377,
+          1.84499990940094,
+          3.430232524871826
+        ]
+      },
+      "triangles": 1428,
+      "materials": [
+        "blue",
+        "concrete",
+        "papaya",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 111792,
+      "file": "glb/grandstand_small.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "grandstand_covered",
+      "category": "atmosphere",
+      "description": "Three broad seating tiers with stairs",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -4.199999809265137,
+          -2.2100000381469727,
+          0.0
+        ],
+        "max": [
+          4.199999809265137,
+          2.3499999046325684,
+          4.75
+        ]
+      },
+      "triangles": 1508,
+      "materials": [
+        "blue",
+        "concrete",
+        "graphite",
+        "papaya",
+        "steel",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 119540,
+      "file": "glb/grandstand_covered.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "marshal_post",
+      "category": "atmosphere",
+      "description": "Raised orange shelter with open front",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -1.5,
+          -1.7999999523162842,
+          0.0
+        ],
+        "max": [
+          1.5,
+          1.399999976158142,
+          3.450000047683716
+        ]
+      },
+      "triangles": 104,
+      "materials": [
+        "concrete",
+        "graphite",
+        "papaya",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 11248,
+      "file": "glb/marshal_post.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "pit_garage",
+      "category": "atmosphere",
+      "description": "Two open bays with a broad blank fascia",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -6.199999809265137,
+          -3.6499998569488525,
+          0.0
+        ],
+        "max": [
+          6.199999809265137,
+          3.5,
+          4.349999904632568
+        ]
+      },
+      "triangles": 196,
+      "materials": [
+        "blue",
+        "concrete",
+        "graphite",
+        "papaya",
+        "white",
+        "yellow"
+      ],
+      "animated_nodes": [],
+      "bytes": 19736,
+      "file": "glb/pit_garage.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "flag_papaya",
+      "category": "atmosphere",
+      "description": "Rigid stylized waving flag with double-sided cloth",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.30000001192092896,
+          -0.30000001192092896,
+          0.0
+        ],
+        "max": [
+          1.6699999570846558,
+          0.30000001192092896,
+          4.199999809265137
+        ]
+      },
+      "triangles": 120,
+      "materials": [
+        "graphite",
+        "papaya",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 11700,
+      "file": "glb/flag_papaya.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "flag_blue",
+      "category": "atmosphere",
+      "description": "Rigid stylized waving flag with double-sided cloth",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.30000001192092896,
+          -0.30000001192092896,
+          0.0
+        ],
+        "max": [
+          1.6699999570846558,
+          0.30000001192092896,
+          4.199999809265137
+        ]
+      },
+      "triangles": 120,
+      "materials": [
+        "blue",
+        "graphite",
+        "steel"
+      ],
+      "animated_nodes": [],
+      "bytes": 11708,
+      "file": "glb/flag_blue.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "flag_checkered",
+      "category": "atmosphere",
+      "description": "Rigid stylized waving flag with double-sided cloth",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -0.30000001192092896,
+          -0.30000001192092896,
+          0.0
+        ],
+        "max": [
+          1.6699999570846558,
+          0.30000001192092896,
+          4.199999809265137
+        ]
+      },
+      "triangles": 120,
+      "materials": [
+        "graphite",
+        "steel",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 11720,
+      "file": "glb/flag_checkered.glb",
+      "sockets_gltf": {}
+    },
+    {
+      "id": "winners_podium",
+      "category": "atmosphere",
+      "description": "Three steps with bold geometric 1 / 2 / 3 markings",
+      "sockets_blender": {},
+      "bounds_blender": {
+        "min": [
+          -2.674999952316284,
+          -0.8650000095367432,
+          0.0
+        ],
+        "max": [
+          2.674999952316284,
+          0.8500000238418579,
+          1.2000000476837158
+        ]
+      },
+      "triangles": 264,
+      "materials": [
+        "concrete",
+        "papaya",
+        "steel",
+        "white"
+      ],
+      "animated_nodes": [],
+      "bytes": 23428,
+      "file": "glb/winners_podium.glb",
+      "sockets_gltf": {}
+    }
+  ]
+}

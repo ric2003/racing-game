@@ -1,11 +1,15 @@
 import * as THREE from 'three'
+import { createSuspendedHazard } from './suspended-hazard.js'
+import type { ModelLibrary } from './models.js'
+import { createModelScenery } from './model-scenery.js'
 import { createLongTrackScenery } from './track-scenery.js'
-import type { HazardSnapshot, ItemBoxSnapshot, OilSlickSnapshot } from '../shared/protocol.js'
+import type { HazardSnapshot, ItemBoxSnapshot, OilSlickSnapshot, RacePhase } from '../shared/protocol.js'
 import { DEFAULT_TRACK, nearestTrackPoint, type TrackDefinition } from '../shared/track.js'
 import { TRACK_WIDTH } from '../shared/constants.js'
 
 export interface TrackVisual {
   group: THREE.Group
+  updateLights?: (phase?: RacePhase, countdownEndsAt?: number | null, serverTime?: number) => void
   update: (elapsedSeconds: number, serverTime: number, itemBoxes?: ItemBoxSnapshot[], hazards?: HazardSnapshot[], oilSlicks?: OilSlickSnapshot[]) => void
   dispose: () => void
 }
@@ -83,7 +87,7 @@ function seededRandom(seed: number): () => number {
   }
 }
 
-export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVisual {
+export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK, models?: ModelLibrary): TrackVisual {
   const group = new THREE.Group()
   const roadGeometry = createStripGeometry(track, TRACK_WIDTH / 2, -TRACK_WIDTH / 2, 0.03)
   const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x343547, roughness: 0.92 })
@@ -160,6 +164,12 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
     shell.castShadow = true
     core.castShadow = true
     visual.add(shell, core, ring)
+    if (models) {
+      shell.visible = core.visible = false
+      const crate = models.clone('item_pickup_crate')
+      crate.position.y = -0.7
+      visual.add(crate)
+    }
     group.add(visual)
     return visual
   })
@@ -168,12 +178,15 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   const padStripeGeometry = new THREE.BoxGeometry(4.25, 0.025, 0.16)
   const padMaterial = new THREE.MeshStandardMaterial({ color: 0xffc857, emissive: 0x8b5d09, emissiveIntensity: 0.85, roughness: 0.52 })
   const padStripeMaterial = new THREE.MeshBasicMaterial({ color: 0xf7f3e8 })
-  const barrierGeometry = new THREE.BoxGeometry(4.2, 0.58, 0.46)
-  const barrierPostGeometry = new THREE.BoxGeometry(0.22, 1.05, 0.22)
-  const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xff4f70, emissive: 0x7b142b, emissiveIntensity: 0.62, roughness: 0.45 })
-  const barrierStripeMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f3e8, emissive: 0x6d5f4c, emissiveIntensity: 0.25, roughness: 0.58 })
+  const suspendedHazards = new Map<string, ReturnType<typeof createSuspendedHazard>>()
   const hazardVisuals = new Map<string, THREE.Group>()
   for (const hazard of track.hazards) {
+    if (hazard.type === 'moving-barrier') {
+      const suspended = createSuspendedHazard(hazard, track, models)
+      suspendedHazards.set(hazard.id, suspended)
+      group.add(suspended.group)
+      continue
+    }
     const visual = new THREE.Group()
     visual.name = `hazard-${hazard.id}`
     visual.position.set(hazard.x, 0.12, hazard.z)
@@ -188,23 +201,14 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
         stripe.position.set(0, 0.052, z)
         visual.add(stripe)
       }
-    } else {
-      const bar = new THREE.Mesh(barrierGeometry, barrierMaterial)
-      bar.position.y = 0.92
-      bar.castShadow = true
-      visual.add(bar)
-      for (const x of [-1.55, 0, 1.55]) {
-        const stripe = new THREE.Mesh(barrierPostGeometry, barrierStripeMaterial)
-        stripe.position.set(x, 0.92, 0.245)
-        stripe.rotation.z = Math.PI / 4
-        visual.add(stripe)
-      }
-      for (const x of [-1.9, 1.9]) {
-        const post = new THREE.Mesh(barrierPostGeometry, barrierMaterial)
-        post.position.set(x, 0.53, 0)
-        post.castShadow = true
-        visual.add(post)
-      }
+    }
+    if (models && hazard.type === 'boost-pad') {
+      visual.clear()
+      const model = models.clone('boost_pad')
+      const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3())
+      model.rotation.y = Math.PI
+      model.scale.set(5.2 / size.x, 1, 2.25 / size.z)
+      visual.add(model)
     }
     hazardVisuals.set(hazard.id, visual)
     group.add(visual)
@@ -224,8 +228,9 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
   const crownMaterial = new THREE.MeshStandardMaterial({ color: harbor ? 0xcf684b : desert ? 0xd49b67 : 0x2ca66f, roughness: 0.95 })
   const random = seededRandom(0x4e454f4e)
   const sceneryInstances: THREE.InstancedMesh[] = []
-  const sceneryCount = track.theme ? 0 : 70
-  const longScenery = track.theme ? createLongTrackScenery(track) : null
+  const sceneryCount = models || track.theme ? 0 : 70
+  const modelScenery = models ? createModelScenery(track, models) : null
+  const longScenery = modelScenery ?? (track.theme ? createLongTrackScenery(track) : null)
   if (longScenery) group.add(longScenery.group)
   const matrix = new THREE.Matrix4()
   // Short batches let the camera cull scenery on distant sections of long circuits.
@@ -265,14 +270,18 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
     stand.rotation.y = Math.atan2(start.normalX, start.normalZ)
   } else stand.position.set(8, 2, -64)
   stand.castShadow = true
-  group.add(stand)
+  if (!models) group.add(stand)
   const itemState = new Map<number, ItemBoxSnapshot>()
   const hazardState = new Map<string, HazardSnapshot>()
   const activeSlicks = new Set<number>()
+  let previousElapsed: number | undefined
 
   return {
     group,
+    updateLights: modelScenery?.updateLights,
     update: (elapsedSeconds, serverTime, itemBoxes, hazards, oilSlicks) => {
+      const delta = previousElapsed === undefined ? 0 : Math.max(0, Math.min(0.1, elapsedSeconds - previousElapsed))
+      previousElapsed = elapsedSeconds
       if (itemBoxes !== undefined) {
         itemState.clear()
         for (const item of itemBoxes) itemState.set(item.id, item)
@@ -293,7 +302,13 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
           const state = hazardState.get(id)
           visual.visible = true
           if (state) visual.position.set(state.x, visual.position.y, state.z)
+
         }
+      }
+
+      for (const [id, suspended] of suspendedHazards) {
+        const state = hazardState.get(id)
+        if (state) suspended.update(state.x, state.z, delta)
       }
 
       activeSlicks.clear()
@@ -350,10 +365,7 @@ export function createTrackMesh(track: TrackDefinition = DEFAULT_TRACK): TrackVi
       padStripeGeometry.dispose()
       padMaterial.dispose()
       padStripeMaterial.dispose()
-      barrierGeometry.dispose()
-      barrierPostGeometry.dispose()
-      barrierMaterial.dispose()
-      barrierStripeMaterial.dispose()
+      suspendedHazards.forEach(hazard => hazard.dispose())
       oilGeometry.dispose()
       oilRingGeometry.dispose()
       oilMaterial.dispose()

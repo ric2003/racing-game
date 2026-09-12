@@ -3,7 +3,9 @@ import { bindingConflict, createInputController, DEFAULT_KEY_BINDINGS } from '..
 
 class TestElement extends EventTarget {
   focus = vi.fn()
-  matches = () => false
+  constructor(private tag = 'canvas') { super() }
+  matches = (selector: string) => selector.split(',').map(value => value.trim()).includes(this.tag)
+  closest = (selector: string) => this.matches(selector) || (selector === '[data-driving-menu]' && this.tag !== 'canvas') ? this : null
   isContentEditable = false
 }
 
@@ -21,6 +23,44 @@ describe('input while editing controls', () => {
     vi.stubGlobal('navigator', { getGamepads: () => [] })
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  function dispatchAt(type: string, target: TestElement, extra = {}) {
+    const event = Object.assign(new Event(type, { cancelable: true }), extra)
+    Object.defineProperty(event, 'target', { value: target })
+    window.dispatchEvent(event)
+  }
+
+  it('returns to driving after clicking the lobby options disclosure', () => {
+    const canvas = new TestElement()
+    const summary = new TestElement('summary')
+    const input = createInputController(canvas as unknown as HTMLElement, vi.fn())
+    try {
+      dispatchAt('pointerdown', summary)
+      dispatchAt('click', summary, { detail: 1 })
+      expect(canvas.focus).toHaveBeenCalled()
+      key('keydown', 'KeyW')
+      expect(input.read().throttle).toBe(1)
+    } finally { input.dispose() }
+  })
+
+  it('returns to driving after mouse selection without interrupting keyboard selection', () => {
+    const canvas = new TestElement()
+    const select = new TestElement('select')
+    const input = createInputController(canvas as unknown as HTMLElement, vi.fn())
+    try {
+      dispatchAt('pointerdown', select)
+      dispatchAt('change', select)
+      expect(canvas.focus).toHaveBeenCalledTimes(1)
+      canvas.focus.mockClear()
+      dispatchAt('pointerdown', select)
+      dispatchAt('keydown', select, { code: 'ArrowDown', key: 'ArrowDown', keyCode: 40, repeat: false })
+      dispatchAt('change', select)
+      expect(canvas.focus).not.toHaveBeenCalled()
+      expect(input.read().throttle).toBe(0)
+      dispatchAt('keyup', select, { code: 'Enter', key: 'Enter', keyCode: 13 })
+      expect(canvas.focus).toHaveBeenCalledTimes(1)
+    } finally { input.dispose() }
+  })
 
   it('does not drive, reset, use items, or steal focus while controls are open', () => {
     const canvas = new TestElement()

@@ -65,8 +65,14 @@ export function createInputController(element: HTMLElement, onReset: () => void,
   let bindings = loadKeyBindings()
   let itemQueued = false
   let gamepadItemPressed = false
+  let pointerSelect: HTMLElement | null = null
+  const menuControl = (target: EventTarget | null, selector: string): HTMLElement | null => {
+    if (!(target instanceof HTMLElement) || !target.closest('[data-driving-menu]')) return null
+    return target.closest<HTMLElement>(selector)
+  }
   const refreshBindings = () => { bindings = loadKeyBindings() }
   const onKeyDown = (event: KeyboardEvent) => {
+    pointerSelect = null
     if (!isEnabled()) {
       onBlur()
       return
@@ -81,6 +87,9 @@ export function createInputController(element: HTMLElement, onReset: () => void,
   }
   const onKeyUp = (event: KeyboardEvent) => {
     for (const token of keyboardTokens(event)) pressed.delete(token)
+    if (isEnabled() && (event.key === 'Enter' || event.key === 'Escape') && menuControl(event.target, 'select')) {
+      element.focus({ preventScroll: true })
+    }
   }
   const onBlur = () => {
     pressed.clear()
@@ -88,11 +97,29 @@ export function createInputController(element: HTMLElement, onReset: () => void,
     gamepadItemPressed = false
   }
   const onPointerDown = () => { if (isEnabled()) element.focus() }
+  const onMenuPointerDown = (event: PointerEvent) => {
+    pointerSelect = menuControl(event.target, 'select')
+    if (menuControl(event.target, 'select, input, button, summary')) onBlur()
+  }
+  const onMenuClick = (event: MouseEvent) => {
+    if (isEnabled() && event.detail > 0 && menuControl(event.target, 'button, summary, input[type="checkbox"]')) {
+      element.focus({ preventScroll: true })
+    }
+  }
+  const onMenuChange = (event: Event) => {
+    if (isEnabled() && pointerSelect && menuControl(event.target, 'select') === pointerSelect) {
+      pointerSelect = null
+      element.focus({ preventScroll: true })
+    }
+  }
   window.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('keyup', onKeyUp, true)
   window.addEventListener('blur', onBlur)
   window.addEventListener('storage', refreshBindings)
   window.addEventListener(KEY_BINDINGS_EVENT, refreshBindings)
+  window.addEventListener('pointerdown', onMenuPointerDown, true)
+  window.addEventListener('click', onMenuClick)
+  window.addEventListener('change', onMenuChange)
   element.addEventListener('pointerdown', onPointerDown)
   return {
     read: () => {
@@ -119,6 +146,9 @@ export function createInputController(element: HTMLElement, onReset: () => void,
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('storage', refreshBindings)
       window.removeEventListener(KEY_BINDINGS_EVENT, refreshBindings)
+      window.removeEventListener('pointerdown', onMenuPointerDown, true)
+      window.removeEventListener('click', onMenuClick)
+      window.removeEventListener('change', onMenuChange)
       element.removeEventListener('pointerdown', onPointerDown)
     },
   }

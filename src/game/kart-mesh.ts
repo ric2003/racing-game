@@ -1,14 +1,15 @@
 import * as THREE from 'three'
+import type { ModelLibrary } from './models.js'
 import type { KartSnapshot } from '../shared/protocol.js'
 
 export interface KartVisual {
   group: THREE.Group
-  wheels: THREE.Mesh[]
+  wheels: THREE.Object3D[]
   updateEffects: (kart: KartSnapshot, serverTime: number, elapsedSeconds: number) => void
   dispose: () => void
 }
 
-export function createKartMesh(color: number): KartVisual {
+export function createKartMesh(color: number, models?: ModelLibrary): KartVisual {
   const group = new THREE.Group()
   const bodyMaterial = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.08 })
   const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x171821, roughness: 0.8 })
@@ -38,7 +39,7 @@ export function createKartMesh(color: number): KartVisual {
   seat.castShadow = true
   group.add(seat)
 
-  const wheels: THREE.Mesh[] = []
+  const wheels: THREE.Object3D[] = []
   for (const x of [-1.18, 1.18]) {
     for (const z of [-1.02, 1.02]) {
       const wheel = new THREE.Mesh(wheelGeometry, darkMaterial)
@@ -53,6 +54,34 @@ export function createKartMesh(color: number): KartVisual {
     const light = new THREE.Mesh(lightGeometry, lightMaterial)
     light.position.set(x, 0.8, 2.35)
     group.add(light)
+  }
+
+  const paintMaterials: THREE.Material[] = []
+  if (models) {
+    group.clear()
+    wheels.length = 0
+    const car = models.clone('race-car')
+    car.name = 'blender-car'
+    // Match the existing kart footprint and retain the server's player colors.
+    car.scale.setScalar(0.88)
+    const paint = new Map<THREE.Material, THREE.Material>()
+    car.traverse(node => {
+      if (node.name.startsWith('wheel_') && !node.parent?.name.startsWith('wheel_')) wheels.push(node)
+      if (!(node instanceof THREE.Mesh)) return
+      const recolor = (material: THREE.Material) => {
+        if (!material.name.includes('Papaya orange enamel')) return material
+        let copy = paint.get(material)
+        if (!copy) {
+          copy = material.clone()
+          if (copy instanceof THREE.MeshStandardMaterial) copy.color.setHex(color)
+          paint.set(material, copy)
+          paintMaterials.push(copy)
+        }
+        return copy
+      }
+      node.material = Array.isArray(node.material) ? node.material.map(recolor) : recolor(node.material)
+    })
+    group.add(car)
   }
 
   const shield = new THREE.Mesh(shieldGeometry, shieldMaterial)
@@ -99,6 +128,7 @@ export function createKartMesh(color: number): KartVisual {
       }
     },
     dispose: () => {
+      paintMaterials.forEach(material => material.dispose())
       bodyGeometry.dispose()
       noseGeometry.dispose()
       seatGeometry.dispose()

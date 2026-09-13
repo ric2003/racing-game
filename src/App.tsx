@@ -202,9 +202,6 @@ function App() {
     <main className="race-app">
       {network.snapshot && <GameCanvas client={client} playerId={network.playerId} snapshot={network.snapshot} inputEnabled={!showControls} />}
       <header className={`topbar ${phase === 'lobby' ? '' : 'topbar-racing'}`}>
-        {phase === 'lobby' && <a className="mini-brand" href="/" onClick={(event) => { event.preventDefault(); leave() }} aria-label="Leave race and return home">
-          <span>NA</span> NEON APEX
-        </a>}
         {phase !== 'lobby' && <div className="room-chip">
           <span>ROOM</span>
           <strong>{network.roomCode}</strong>
@@ -213,11 +210,17 @@ function App() {
           {copyFeedback === 'error' && <span className="copy-status is-error">COPY FAILED</span>}
           <span className="sr-only" aria-live="polite">{copyFeedback === 'code' ? 'Room code copied.' : copyFeedback === 'invite' ? 'Invite link copied.' : copyFeedback === 'error' ? 'Could not copy.' : ''}</span>
         </div>}
-        {phase === 'lobby' && <div className={`connection ${network.status}`}><i />{network.status === 'connected' ? 'LIVE' : 'OFFLINE'}</div>}
-        {phase !== 'finished' && network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
-          <button className="reconnect-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
-        )}
       </header>
+
+      {phase !== 'finished' && network.status === 'disconnected' && network.reconnectToken && network.roomCode && (
+        <section className="reconnect-message glass-panel" aria-label="Connection lost">
+          <div role="alert">
+            <h2>Connection lost</h2>
+            <p>Reconnect to get back into the race.</p>
+          </div>
+          <button className="primary-button" type="button" onClick={() => client.resumeRoom(name, network.roomCode!, network.reconnectToken!)}>RECONNECT</button>
+        </section>
+      )}
 
       {phase === 'lobby' && (
         <section className="lobby-panel glass-panel" aria-label="Pre-race lobby">

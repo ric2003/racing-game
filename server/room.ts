@@ -10,6 +10,7 @@ import {
   INPUT_IDLE_MS,
   INPUT_STEPS_PER_SAMPLE,
   ITEM_BOX_RESPAWN_MS,
+  KART_RADIUS,
   MAX_CATCH_UP_STEPS,
   MAX_EVENTS_PER_SNAPSHOT,
   MAX_PLAYERS,
@@ -51,7 +52,8 @@ import { sendServerMessage } from './socket.js'
 const COLORS = [0xff5d73, 0x57d9ff, 0xffd166, 0x9cff57]
 const MAX_INPUT_QUEUE = 30
 const BARRIER_SPEED_RETENTION = 0.28
-const BARRIER_IMPACT_TURN = 0.5
+const BARRIER_MAX_PUSH_SPEED = 24
+const BARRIER_PUSH_MULTIPLIER = 4
 
 interface QueuedInput extends Controls {
   seq: number
@@ -654,7 +656,8 @@ export class RaceRoom {
     for (const hazard of this.track.hazards) {
       const position = this.hazardPosition(hazard, now)
       for (const player of players) {
-        if (distanceSquared(player.kart, position) > hazard.radius * hazard.radius) continue
+        const contactRadius = hazard.radius + (hazard.type === 'moving-barrier' ? KART_RADIUS : 0)
+        if (distanceSquared(player.kart, position) > contactRadius * contactRadius) continue
         const cooldown = this.hazardCooldowns.get(`${hazard.id}:${player.id}`) ?? 0
         if (cooldown > now) continue
         this.hazardCooldowns.set(`${hazard.id}:${player.id}`, now + 1_250)
@@ -667,7 +670,25 @@ export class RaceRoom {
           if (!shielded) {
             player.kart.vx *= BARRIER_SPEED_RETENTION
             player.kart.vz *= BARRIER_SPEED_RETENTION
-            player.kart.heading += stableNumber(`${hazard.id}:${player.id}`) % 2 === 0 ? BARRIER_IMPACT_TURN : -BARRIER_IMPACT_TURN
+            // Sample either side of the impact so the push follows the swing,
+            // including its reversal, rather than the kart's facing direction.
+            const before = this.hazardPosition(hazard, now - 1)
+            const after = this.hazardPosition(hazard, now + 1)
+            const velocityX = (after.x - before.x) * 500
+            const velocityZ = (after.z - before.z) * 500
+            const speed = Math.hypot(velocityX, velocityZ)
+            if (speed > 0.0001) {
+              const directionX = velocityX / speed
+              const directionZ = velocityZ / speed
+              // A heavy ball carries the kart with its swing. Retained opposing
+              // momentum must not overpower the impact; keep sideways motion.
+              const opposingSpeed = Math.min(0, player.kart.vx * directionX + player.kart.vz * directionZ)
+              player.kart.vx -= directionX * opposingSpeed
+              player.kart.vz -= directionZ * opposingSpeed
+            }
+            const scale = Math.min(BARRIER_PUSH_MULTIPLIER, BARRIER_MAX_PUSH_SPEED / Math.max(0.0001, speed))
+            player.kart.vx += velocityX * scale
+            player.kart.vz += velocityZ * scale
           }
         }
       }

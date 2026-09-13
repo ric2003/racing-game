@@ -135,8 +135,9 @@
 .room-chip button + button { background: #4b4970; }
 .room-chip .copy-status { color: var(--cyan); letter-spacing: .08em; }
 .room-chip .copy-status.is-error { color: var(--coral); }
-.reconnect-button { border: 1px solid var(--cyan); padding: 8px 11px; color: var(--cyan); background: rgba(19,18,34,.86); font-size: 9px; font-weight: 800; letter-spacing: .12em; cursor: pointer; }
-.reconnect-button:hover { color: var(--ink); background: var(--cyan); }
+.reconnect-message { position: fixed; z-index: 8; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100% - 32px)); padding: 28px; text-align: center; }
+.reconnect-message h2 { margin: 0 0 12px; font: 800 30px/1 'Barlow Condensed'; text-transform: uppercase; }
+.reconnect-message p { margin: 0 0 22px; color: #bbb9c8; font-size: 14px; line-height: 1.5; }
 .controls-toggle { border: 1px solid rgba(255,255,255,.18); padding: 8px 10px; color: #bbb9c8; background: rgba(19,18,34,.78); font-size: 9px; font-weight: 800; letter-spacing: .12em; cursor: pointer; }
 .controls-toggle:hover { color: white; border-color: var(--cyan); }
 .connection { display: flex; align-items: center; gap: 7px; font-size: 9px; font-weight: 800; letter-spacing: .14em; }

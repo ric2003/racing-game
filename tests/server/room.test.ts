@@ -289,11 +289,65 @@ describe('authoritative race room', () => {
     player.kart.vz = projection.tangentZ * 20
     advance()
     expect(player.item.disabledUntil).not.toBeNull()
-    expect(Math.hypot(player.kart.vx, player.kart.vz)).toBeLessThan(10)
+    expect(Math.abs(player.kart.vx * projection.tangentX + player.kart.vz * projection.tangentZ)).toBeLessThan(10)
     advance()
     advance()
     const barrierHit = snapshots(messages).at(-1)?.events?.find((event) => event.kind === 'spin' && event.targetId === player.id)
     expect(barrierHit?.item).toBeUndefined()
+  })
+
+  it.each([2.7, 3.3])('checks the kart body against the ball at distance %f', (distance) => {
+    const { room, advance } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.phase = 'racing'
+    const barrier = DEFAULT_TRACK.hazards.find(hazard => hazard.type === 'moving-barrier')!
+    const projection = nearestTrackPoint(barrier)
+    player.kart.x = projection.x + projection.tangentX * distance
+    player.kart.z = projection.z + projection.tangentZ * distance
+    player.kart.vx = player.kart.vz = 0
+    advance()
+    expect(player.item.disabledUntil !== null).toBe(distance < 3.05)
+  })
+
+  it.each([0, 1800])('pushes a stationary kart in the ball travel direction at %i ms', (startTime) => {
+    const { room, advance, setClock } = createRoom()
+    setClock(startTime)
+    room.advance(startTime)
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.phase = 'racing'
+    const barrier = DEFAULT_TRACK.hazards.find((hazard) => hazard.type === 'moving-barrier')!
+    const projection = nearestTrackPoint(barrier)
+    player.kart.x = projection.x
+    player.kart.z = projection.z
+    player.kart.vx = player.kart.vz = 0
+    setClock(startTime)
+    advance()
+    const direction = startTime === 0 ? 1 : -1
+    expect(player.item.disabledUntil).not.toBeNull()
+    expect((player.kart.vx * projection.tangentZ - player.kart.vz * projection.tangentX) * direction).toBeGreaterThan(20)
+  })
+
+  it.each([0, 1800])('reverses a kart driving against the ball at %i ms', (startTime) => {
+    const { room, advance, setClock } = createRoom()
+    const player = room.addPlayer('a', 'Alpha', closedSocket())!
+    room.phase = 'racing'
+    const barrier = DEFAULT_TRACK.hazards.find((hazard) => hazard.type === 'moving-barrier')!
+    const projection = nearestTrackPoint(barrier)
+    const direction = startTime === 0 ? 1 : -1
+    const travelX = projection.tangentZ * direction
+    const travelZ = -projection.tangentX * direction
+    player.kart.x = projection.x
+    player.kart.z = projection.z
+    player.kart.heading = Math.atan2(-travelX, -travelZ)
+    player.kart.vx = -travelX * 31
+    player.kart.vz = -travelZ * 31
+    setClock(startTime)
+    advance()
+    expect(player.item.disabledUntil).not.toBeNull()
+    expect(player.kart.vx * travelX + player.kart.vz * travelZ).toBeGreaterThan(1)
+    const impact = { x: player.kart.x, z: player.kart.z }
+    for (let tick = 0; tick < 12; tick += 1) advance()
+    expect((player.kart.x - impact.x) * travelX + (player.kart.z - impact.z) * travelZ).toBeGreaterThan(0)
   })
 
   it('lets a shielded kart drive through a moving barrier without losing speed', () => {

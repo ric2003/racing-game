@@ -9,16 +9,7 @@ export async function loadVolcanoIsland(reducedMotion: boolean) {
   const materials = new Set<THREE.Material>()
   const textures = new Set<THREE.Texture>()
   const lava = new Set<THREE.MeshStandardMaterial>()
-  const clouds: { node: THREE.Object3D; origin: THREE.Vector3; drift: THREE.Vector3 }[] = []
-  group.updateMatrixWorld(true)
-  const sourceHeight = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3()).y
   group.traverse(node => {
-    if (node.name === 'Clouds' && node.parent) {
-      const inverse = node.parent.matrixWorld.clone().invert()
-      const drift = new THREE.Vector3(0, sourceHeight * 0.01, 0).applyMatrix4(inverse)
-        .sub(new THREE.Vector3().applyMatrix4(inverse))
-      clouds.push({ node, origin: node.position.clone(), drift })
-    }
     if (!(node instanceof THREE.Mesh)) return
     geometries.add(node.geometry)
     for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
@@ -37,15 +28,14 @@ export async function loadVolcanoIsland(reducedMotion: boolean) {
   })
   const remove: THREE.Object3D[] = []
   group.traverse(node => {
-    if (node.name === 'Ocean' || node instanceof THREE.Light || node instanceof THREE.Camera) remove.push(node)
+    if (node.name === 'Ocean' || node.name === 'Clouds' || node instanceof THREE.Light || node instanceof THREE.Camera) remove.push(node)
   })
   remove.forEach(node => node.removeFromParent())
   return {
     group,
     update: (time: number) => {
       const t = reducedMotion ? 0 : time
-      clouds.forEach(({ node, origin, drift }) => { node.position.copy(origin).addScaledVector(drift, Math.sin(t * 0.45)) })
-      lava.forEach(material => { material.emissiveIntensity = 0.85 + Math.sin(t * 1.2) * 0.15 })
+      lava.forEach(material => { material.emissiveIntensity = 0.18 + Math.sin(t * 1.2) * 0.04 })
     },
     dispose: () => {
       geometries.forEach(geometry => geometry.dispose())

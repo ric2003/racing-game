@@ -109,7 +109,7 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     materials.push(material)
     const puff = new THREE.Mesh(smokeGeometry, material)
     puff.name = `volcano-smoke-${i}`
-    fallback.add(puff)
+    group.add(puff)
     return puff
   })
   function update(time: number) {
@@ -138,7 +138,21 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
       island.position.sub(new THREE.Vector3(center.x, box.min.y, center.z))
       placement.add(island)
       placement.scale.setScalar(scale)
-      placement.position.set(vx, -10, vz)
+      // Bury the beach and cut-away underside beneath the horizon.
+      placement.position.set(vx, -dimensions.y * scale * 0.28, vz)
+      island.traverse(node => {
+        if (!(node instanceof THREE.Mesh)) return
+        for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+          // A little atmospheric haze joins the textured asset to the distant hills.
+          material.onBeforeCompile = (shader: Parameters<THREE.Material['onBeforeCompile']>[0]) => {
+            shader.uniforms.landmarkHaze = { value: sky }
+            shader.fragmentShader = 'uniform vec3 landmarkHaze;\n' + shader.fragmentShader
+            shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>',
+              'outgoingLight = mix(outgoingLight, landmarkHaze, 0.32);\n#include <opaque_fragment>')
+          }
+          material.needsUpdate = true
+        }
+      })
       group.add(placement)
       fallback.visible = false
     },

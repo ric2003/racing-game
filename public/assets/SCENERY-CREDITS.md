@@ -20,7 +20,7 @@ by [Animateria](https://sketchfab.com/Animateria), licensed under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 The GLB was supplied by the user. Its embedded asset metadata records the same author, source, and license.
 The game preserves the geometry and textures, hides the ocean plane, removes imported lights/cameras,
-adjusts material response, scales the island uniformly, and adds cloud motion and lava glow animation.
+adjusts material response, scales the island uniformly, hides the authored clouds, adds animated smoke and subtle lava glow, and blends the buried island into the horizon.
 The procedural volcano remains only as a loading/error fallback.
 Player-facing credit is linked from the landing page at `/asset-credits.html`.
 

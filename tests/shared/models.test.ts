@@ -193,6 +193,34 @@ describe('Blender model integration', () => {
         const instanced = scenery.children.filter((child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh)
         expect(instanced.length).toBeGreaterThan(0)
         expect(instanced.every(mesh => mesh.boundingSphere !== null && mesh.boundingSphere.radius < 200)).toBe(true)
+        const vegetation = instanced.filter(mesh => /^(grass_clump|bush_low|fern_cluster|wildflowers)/.test(mesh.name))
+        expect(vegetation.length > 0).toBe(!track.theme || track.theme === 'forest')
+        if (!track.theme || track.theme === 'forest') {
+          const distantTrees = new Set<string>()
+          for (const mesh of instanced.filter(mesh => mesh.name.startsWith('tree_'))) {
+            for (let i = 0; i < mesh.count; i++) {
+              const matrix = new THREE.Matrix4()
+              mesh.getMatrixAt(i, matrix)
+              const position = new THREE.Vector3().setFromMatrixPosition(matrix)
+              if (nearestTrackPoint(position, track).distance > 100) {
+                distantTrees.add(`${position.x}:${position.z}`)
+              }
+            }
+          }
+          expect(distantTrees.size).toBeGreaterThan(100)
+        }
+        for (const mesh of vegetation) {
+          mesh.geometry.computeBoundingBox()
+          for (let i = 0; i < mesh.count; i++) {
+            const matrix = new THREE.Matrix4()
+            mesh.getMatrixAt(i, matrix)
+            const box = mesh.geometry.boundingBox!.clone().applyMatrix4(matrix)
+            const center = box.getCenter(new THREE.Vector3())
+            const radius = Math.hypot(box.max.x - box.min.x, box.max.z - box.min.z) / 2
+            expect(nearestTrackPoint(center, track).distance - radius).toBeGreaterThan(TRACK_WIDTH / 2)
+            expect(box.min.y).toBeGreaterThanOrEqual(-0.05)
+          }
+        }
         const item = visual.group.getObjectByName('item-box-0')!
         visual.update(1, 1000, [], [], [])
         expect(item.visible).toBe(false)

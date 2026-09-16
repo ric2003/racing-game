@@ -96,6 +96,8 @@ The server runs a fixed 60 Hz simulation and sends snapshots at 20 Hz. Clients s
 
 ## Environment
 
+For the Raspberry Pi backend and Vercel frontend setup, see [deployment instructions](deploy/README.md).
+
 - `PORT`: server port, default `3001`
 - `HOST`: bind host, default `0.0.0.0`
 - `MAX_CONNECTIONS`: global WebSocket connection cap, default `64`

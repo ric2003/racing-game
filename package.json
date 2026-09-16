@@ -8,6 +8,7 @@
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "build:server": "tsc -p tsconfig.server.build.json",
     "start": "tsx server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",

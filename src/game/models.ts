@@ -15,6 +15,8 @@ export const RACING_MODELS = [
   'grandstand_small', 'grandstand_covered', 'marshal_post', 'pit_garage',
   'flag_blue', 'flag_papaya', 'flag_checkered', 'winners_podium',
   'cannonball',
+  'grass_clump_low', 'grass_clump_tall', 'bush_low', 'fern_cluster',
+  'wildflowers_cream', 'wildflowers_lavender',
 ] as const
 
 export type RacingModel = typeof RACING_MODELS[number]

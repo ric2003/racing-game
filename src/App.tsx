@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import './App.css'
 import { GameCanvas } from './game/GameCanvas.js'
 import { Minimap } from './game/Minimap.js'
@@ -130,6 +130,7 @@ function App() {
   if (!network.roomCode || !network.playerId || !network.lobby) {
     return (
       <main className="landing">
+        <TouchNotice />
         <div className="landing-glow landing-glow-one" />
         <div className="landing-glow landing-glow-two" />
         <section className="brand-panel" aria-labelledby="game-title">
@@ -379,6 +380,48 @@ function TrackPreview({ trackId }: { trackId: string }) {
       <polygon className="track-preview-road" points={points} />
       <polygon className="track-preview-line" points={points} />
     </svg>
+  )
+}
+
+function TouchNotice() {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const dismissed = useRef(false)
+  const [copyStatus, setCopyStatus] = useState('')
+
+  useEffect(() => {
+    const media = window.matchMedia('(hover: none) and (pointer: coarse)')
+    const dialog = dialogRef.current!
+    const sync = () => {
+      if (media.matches && !dismissed.current && !dialog.open) dialog.showModal()
+      else if (!media.matches && dialog.open) dialog.close()
+    }
+    sync()
+    media.addEventListener('change', sync)
+    return () => {
+      media.removeEventListener('change', sync)
+      dialog.close()
+    }
+  }, [])
+
+  const dismiss = () => {
+    dismissed.current = true
+    dialogRef.current?.close()
+  }
+
+  return (
+    <dialog className="touch-notice" ref={dialogRef}
+      aria-labelledby="touch-notice-title" aria-describedby="touch-notice-description"
+      onCancel={() => { dismissed.current = true }}>
+      <h2 id="touch-notice-title">Touch controls aren’t available</h2>
+      <p id="touch-notice-description">Open this link on a computer to race with a keyboard or controller.</p>
+      <div className="touch-notice-actions">
+        <button type="button" onClick={async () => {
+          setCopyStatus(await copyText(window.location.href) ? 'Link copied' : 'Couldn’t copy. Share the link from your browser’s address bar.')
+        }}>Copy game link</button>
+        <button type="button" className="touch-notice-dismiss" onClick={dismiss}>Got it</button>
+      </div>
+      <span className="touch-copy-status" role="status">{copyStatus}</span>
+    </dialog>
   )
 }
 

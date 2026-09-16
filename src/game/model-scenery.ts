@@ -44,6 +44,24 @@ export function createModelScenery(track: TrackDefinition, models: ModelLibrary)
     : desert ? ['sandstone_arch', 'sandstone_mesa', 'abandoned_gas_station']
       : ['warehouse', 'dock_crane', 'cargo_ship']
   const count = Math.ceil(getTrackLength(track) / 22)
+  let vegetationSeed = 1847
+  const vegetationRandom = () => {
+    vegetationSeed = (Math.imul(vegetationSeed, 1664525) + 1013904223) >>> 0
+    return vegetationSeed / 0x100000000
+  }
+  function plantCluster(x: number, z: number, sample: number, underTree = false) {
+    const species: RacingModel[] = underTree
+      ? ['fern_cluster', 'grass_clump_low', 'bush_low', 'grass_clump_low']
+      : ['grass_clump_low', 'grass_clump_tall', 'bush_low',
+        sample % 2 ? 'wildflowers_cream' : 'wildflowers_lavender', 'grass_clump_low']
+    for (let plant = 0; plant < 7; plant++) {
+      const angle = vegetationRandom() * Math.PI * 2
+      const radius = 0.8 + Math.sqrt(vegetationRandom()) * 3.2
+      place(species[plant % species.length], x + Math.cos(angle) * radius,
+        z + Math.sin(angle) * radius, vegetationRandom() * Math.PI * 2,
+        0.8 + vegetationRandom() * 0.65)
+    }
+  }
   for (let sample = 0; sample < count; sample++) {
     const index = Math.floor(sample / count * track.points.length)
     const p = track.points[index]
@@ -54,6 +72,15 @@ export function createModelScenery(track: TrackDefinition, models: ModelLibrary)
     for (const side of [-1, 1]) {
       const offset = side * (18 + (sample * 17 % 29))
       place(small[(sample + (side === 1 ? 2 : 0)) % small.length], p.x + sideX * offset, p.z + sideZ * offset, heading + sample * 0.7)
+      if (forest) {
+        // Understory connects the existing trees and rocks to the ground.
+        plantCluster(p.x + sideX * offset, p.z + sideZ * offset, sample, true)
+        // Uneven pockets leave open grass between patches and keep sightlines clear.
+        if (sample % 5 !== 0) {
+          const verge = side * (15 + vegetationRandom() * 5)
+          plantCluster(p.x + sideX * verge, p.z + sideZ * verge, sample)
+        }
+      }
     }
     if (sample % 3 === 0) {
       const side = sample % 2 ? -1 : 1
@@ -69,6 +96,45 @@ export function createModelScenery(track: TrackDefinition, models: ModelLibrary)
     }
     if (sample % 12 === 0) {
       place(landmarks[Math.floor(sample / 12) % landmarks.length], p.x + sideX * 65, p.z + sideZ * 65, heading - Math.PI / 2)
+    }
+  }
+
+  if (forest) {
+    // Fill the landscape in world-space cells so nearby bends share one forest,
+    // rather than adding overlapping rows of scenery for each road segment.
+    const plantedCells = new Set<string>()
+    const trees: RacingModel[] = ['tree_pine', 'tree_broadleaf', 'tree_pine', 'tree_birch']
+    for (let sample = 0; sample < count; sample++) {
+      const index = Math.floor(sample / count * track.points.length)
+      const p = track.points[index]
+      const next = track.points[(index + 1) % track.points.length]
+      const heading = Math.atan2(next.x - p.x, next.z - p.z)
+      for (const side of [-1, 1]) {
+        for (const depth of [55, 80, 110, 145, 185, 220]) {
+          const cellX = Math.floor((p.x + Math.cos(heading) * side * depth) / 24)
+          const cellZ = Math.floor((p.z - Math.sin(heading) * side * depth) / 24)
+          const key = `${cellX}:${cellZ}`
+          if (plantedCells.has(key)) continue
+          plantedCells.add(key)
+          const x = (cellX + 0.5) * 24
+          const z = (cellZ + 0.5) * 24
+          const distance = nearestTrackPoint({ x, z }, track).distance
+          // Preserve the existing verge and paddock; distant groves have gaps.
+          if (distance < 42 || vegetationRandom() < 0.12) continue
+          for (let tree = 0; tree < 5; tree++) {
+            const tx = x + (vegetationRandom() - 0.5) * 22
+            const tz = z + (vegetationRandom() - 0.5) * 22
+            place(trees[Math.floor(vegetationRandom() * trees.length)], tx, tz,
+              vegetationRandom() * Math.PI * 2, 1.1 + vegetationRandom() * 1.4)
+          }
+          if (vegetationRandom() < 0.35) {
+            place('boulder_03', x + 5, z - 3, vegetationRandom() * Math.PI * 2,
+              1.6 + vegetationRandom() * 1.8)
+          }
+          // Tiny leaves don't contribute to the silhouette beyond the middle distance.
+          if (distance < 110) plantCluster(x, z, sample, true)
+        }
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { ModelLibrary, RACING_MODELS } from '../../src/game/models.js'
 import { createKartMesh } from '../../src/game/kart-mesh.js'
 import { createTrackMesh } from '../../src/game/track-mesh.js'
+import { createSceneryTrain } from '../../src/game/scenery-train.js'
 import { TRACK_WIDTH } from '../../src/shared/constants.js'
 import { nearestTrackPoint, TRACKS } from '../../src/shared/track.js'
 
@@ -140,6 +141,33 @@ describe('Blender model integration', () => {
   }
 
   for (const track of TRACKS) {
+    it(`${track.name} keeps the moving train and railway outside the road`, () => {
+      const railway = createSceneryTrain(track, models, false)
+      const stillRailway = createSceneryTrain(track, models, true)
+      try {
+        const train = railway.group.getObjectByName('freight-train')!
+        const initial = train.position.z
+        railway.update(2)
+        expect(train.position.z).toBeCloseTo(initial + 28)
+        const stillTrain = stillRailway.group.getObjectByName('freight-train')!
+        const stillInitial = stillTrain.position.z
+        stillRailway.update(2)
+        expect(stillTrain.position.z).toBe(stillInitial)
+        for (const time of [0, 30, 120, 600]) {
+          railway.update(time)
+          railway.group.updateMatrixWorld(true)
+          for (const car of train.children) {
+            const center = car.getWorldPosition(new THREE.Vector3())
+            expect(nearestTrackPoint(center, track).distance).toBeGreaterThan(TRACK_WIDTH / 2 + 20)
+            const box = new THREE.Box3().setFromObject(car)
+            expect(box.min.y).toBeGreaterThan(0)
+          }
+        }
+      } finally {
+        railway.dispose()
+        stillRailway.dispose()
+      }
+    })
     it(`${track.name} points chevrons into bends and boost arrows along travel`, () => {
       const visual = createTrackMesh(track, models)
       let signs = 0
@@ -194,6 +222,7 @@ describe('Blender model integration', () => {
         expect(instanced.length).toBeGreaterThan(0)
         expect(instanced.every(mesh => mesh.boundingSphere !== null && mesh.boundingSphere.radius < 200)).toBe(true)
         const vegetation = instanced.filter(mesh => /^(grass_clump|bush_low|fern_cluster|wildflowers)/.test(mesh.name))
+        expect(instanced.some(mesh => mesh.name === 'ruin_arch')).toBe(!track.theme || track.theme === 'forest')
         expect(vegetation.length > 0).toBe(!track.theme || track.theme === 'forest')
         if (!track.theme || track.theme === 'forest') {
           const distantTrees = new Set<string>()

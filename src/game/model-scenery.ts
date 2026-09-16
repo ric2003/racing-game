@@ -96,6 +96,22 @@ export function createModelScenery(track: TrackDefinition, models: ModelLibrary)
     }
     if (sample % 12 === 0) {
       place(landmarks[Math.floor(sample / 12) % landmarks.length], p.x + sideX * 65, p.z + sideZ * 65, heading - Math.PI / 2)
+      if (forest) {
+        const x = p.x - sideX * 55
+        const z = p.z - sideZ * 55
+        const local = (across: number, along: number) => ({
+          x: x + sideX * across + Math.sin(heading) * along,
+          z: z + sideZ * across + Math.cos(heading) * along,
+        })
+        place('ruin_arch', x, z, heading, 3)
+        for (const side of [-1, 1]) {
+          const wall = local(side * 10, 6)
+          place('ruin_wall', wall.x, wall.z, heading + (side === 1 ? Math.PI / 2 : 0), 3)
+          const column = local(side * 7, -5)
+          place('ruin_column', column.x, column.z, heading, 3)
+          plantCluster(wall.x, wall.z, sample, true)
+        }
+      }
     }
   }
 

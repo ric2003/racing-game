@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { createMountainBackdrop } from './mountain-backdrop.js'
+import { createSceneryTrain } from './scenery-train.js'
 import { loadModels, type ModelLibrary } from './models.js'
 import type { HazardSnapshot, ItemBoxSnapshot, KartSnapshot, OilSlickSnapshot, RaceEvent, RacePhase } from '../shared/protocol.js'
 import { createKartMesh, type KartVisual } from './kart-mesh.js'
@@ -84,6 +85,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
 
   const kartVisuals = new Map<string, KartVisual>()
   let models: ModelLibrary | undefined
+  let sceneryTrain: ReturnType<typeof createSceneryTrain> | undefined
   let disposed = false
   void loadModels().then(loaded => {
     if (disposed) {
@@ -91,6 +93,8 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       return
     }
     models = loaded
+    sceneryTrain = createSceneryTrain(track, models, reducedMotion)
+    scene.add(sceneryTrain.group)
     const nextTrack = createTrackMesh(track, models)
     scene.remove(trackVisual.group)
     trackVisual.dispose()
@@ -174,6 +178,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   function render(karts: RenderKart[], localId: string, delta: number, cameraId = localId, trackState?: TrackRenderState) {
     elapsedSeconds += delta
     backdrop.update(elapsedSeconds)
+    sceneryTrain?.update(elapsedSeconds)
     const serverTime = trackState?.serverTime ?? performance.now()
     trackVisual.update(elapsedSeconds, serverTime, trackState?.itemBoxes, trackState?.hazards, trackState?.oilSlicks)
     trackVisual.updateLights?.(trackState?.phase, trackState?.countdownEndsAt, serverTime)
@@ -257,6 +262,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       transientEffects.length = 0
       trackVisual.dispose()
       backdrop.dispose()
+      sceneryTrain?.dispose()
       models?.dispose()
       groundGeometry.dispose()
       groundMaterial.dispose()

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ruin_arch",
+    "original": "Arch_Gothic",
+    "source": "https://drive.google.com/uc?export=download&id=1vE13atqispblawLnmzdEc58BjosSTodL",
+    "sha256": "13c86bb1622058d10055f83625d8d8b61b6833485d8fd9806c21510fd176b118",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  },
+  {
+    "id": "ruin_column",
+    "original": "Column_Round_Short",
+    "source": "https://drive.google.com/uc?export=download&id=1fdpV0Qop2byU87Y2MJRoqQdvcxiPN6Ih",
+    "sha256": "88f4da7d07fd2ef971571318e903e2cf0e28837ea3d7e23c9edc87d645584a9f",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  },
+  {
+    "id": "ruin_wall",
+    "original": "Curve_1_Overgrown",
+    "source": "https://drive.google.com/uc?export=download&id=1m_vBWtoZy2ogDRlBUHpi6_qjFtabfoa8",
+    "sha256": "3369e176346bb3a7659318b37b7351b211232a8d1f6220a03e5163fe85215b27",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  },
+  {
+    "id": "train_engine",
+    "original": "CargoTrain_Front",
+    "source": "https://drive.google.com/uc?export=download&id=1NINlif1KXpo2JjA-md2lJTO2z36zFH_W",
+    "sha256": "dcdb2e7a319d535b925fa3434d03d0431a6daec01953d598285f055399dde779",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  },
+  {
+    "id": "train_wagon",
+    "original": "CargoTrain_Wagon",
+    "source": "https://drive.google.com/uc?export=download&id=15EMvJeV6p5BZpgm70s2kqIawOhYGVIxE",
+    "sha256": "50182981d4e94c83ae65b54e16e313ed68855d7fca0724d5839fe01b6ab79489",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  },
+  {
+    "id": "rail_straight",
+    "original": "RailwayTrack_Straight",
+    "source": "https://drive.google.com/uc?export=download&id=1VPAOsv3KN7LalNGf1uEz2QfGTy4UcIo6",
+    "sha256": "88846be2c1e1da1e9c8c810e1663aac2f8da6e92f5ec34690447b8d2f5a1f0d9",
+    "creator": "Quaternius",
+    "license": "CC0-1.0"
+  }
+]

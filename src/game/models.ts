@@ -17,6 +17,7 @@ export const RACING_MODELS = [
   'cannonball',
   'grass_clump_low', 'grass_clump_tall', 'bush_low', 'fern_cluster',
   'wildflowers_cream', 'wildflowers_lavender',
+  'ruin_arch', 'ruin_column', 'ruin_wall', 'train_engine', 'train_wagon', 'rail_straight',
 ] as const
 
 export type RacingModel = typeof RACING_MODELS[number]

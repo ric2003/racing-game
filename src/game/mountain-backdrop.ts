@@ -119,12 +119,13 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     group.add(puff)
     return puff
   })
+  const smokeOrigin = new THREE.Vector3(vx, volcanoHeight - 10, vz)
   function update(time: number) {
     const t = reducedMotion ? 0 : time
     smoke.forEach((puff, i) => {
       const age = (i / smoke.length + t * 0.022) % 1
-      puff.position.set(vx + age * size * 0.2, volcanoHeight - 10 + age * size * 0.22,
-        vz + Math.sin(age * 3) * size * 0.06)
+      puff.position.set(smokeOrigin.x + age * size * 0.2, smokeOrigin.y + age * size * 0.22,
+        smokeOrigin.z + Math.sin(age * 3) * size * 0.06)
       puff.scale.setScalar(size * (0.015 + age * 0.04))
       puff.material.opacity = Math.sin(age * Math.PI) * 0.58
     })
@@ -161,6 +162,28 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
         }
       })
       group.add(placement)
+      placement.updateMatrixWorld(true)
+      // The authored summit is offset from the island's bounding-box center.
+      // Average its upper rim after placement, so smoke starts at the real crater.
+      const summit: THREE.Vector3[] = []
+      let highest = -Infinity
+      island.traverse(node => {
+        if (!(node instanceof THREE.Mesh) || !node.name.includes('Volcano_Base')) return
+        const positions = node.geometry.getAttribute('position')
+        for (let i = 0; i < positions.count; i++) {
+          const point = new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(node.matrixWorld)
+          highest = Math.max(highest, point.y)
+          summit.push(point)
+        }
+      })
+      const rim = summit.filter(point => point.y >= highest - size * 0.004)
+      if (rim.length) {
+        smokeOrigin.set(0, 0, 0)
+        rim.forEach(point => smokeOrigin.add(point))
+        smokeOrigin.divideScalar(rim.length)
+        group.worldToLocal(smokeOrigin)
+      }
+      update(0)
       fallback.visible = false
     },
     far: radius * 2 + size * 3,

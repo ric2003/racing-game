@@ -30,6 +30,7 @@ describe('mountain backdrop', () => {
     island = (await new GLTFLoader().parseAsync(geometryOnly.buffer.slice(
       geometryOnly.byteOffset, geometryOnly.byteOffset + geometryOnly.byteLength), '')).scene
     island.getObjectByName('Ocean')?.removeFromParent()
+    island.getObjectByName('Clouds')?.removeFromParent()
   })
   afterAll(() => island?.traverse(node => {
     if (node instanceof THREE.Mesh) {
@@ -50,6 +51,18 @@ describe('mountain backdrop', () => {
         expect(placement.scale.x).toBe(placement.scale.y)
         expect(placement.scale.y).toBe(placement.scale.z)
         expect(backdrop.group.getObjectByName('procedural-volcano')!.visible).toBe(false)
+        const base = placement.getObjectByName('Volcano_Base_Volcano_Base_0') as THREE.Mesh
+        const baseBox = new THREE.Box3().setFromObject(base)
+        const smoke = backdrop.group.getObjectByName('volcano-smoke-0')!
+        expect(Math.abs(smoke.position.y - baseBox.max.y)).toBeLessThan(2)
+        const vertices = base.geometry.getAttribute('position')
+        let nearestSummit = Infinity
+        for (let i = 0; i < vertices.count; i++) {
+          const point = new THREE.Vector3().fromBufferAttribute(vertices, i).applyMatrix4(base.matrixWorld)
+          if (point.y > baseBox.max.y - 2) nearestSummit = Math.min(nearestSummit, point.distanceTo(smoke.position))
+        }
+        expect(nearestSummit).toBeLessThan(baseBox.getSize(new THREE.Vector3()).x * 0.08)
+
         for (const p of track.startGrid) {
           expect(new THREE.Vector3(p.x, 7, p.z).distanceTo(box.getCenter(new THREE.Vector3())) +
             box.getSize(new THREE.Vector3()).length() / 2).toBeLessThan(backdrop.far)

@@ -81,6 +81,13 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
   const vz = centerZ + Math.sin(volcanoAngle) * radius
   const volcanoWidth = size * 0.85
   const volcanoHeight = size * 0.30
+  // Overlapping foothills cover the island's straight shoreline and connect it to the range.
+  for (let i = -2; i <= 2; i++) {
+    const angle = volcanoAngle + i * 0.16
+    mountain(centerX + Math.cos(angle) * (radius - size * 0.28),
+      centerZ + Math.sin(angle) * (radius - size * 0.28),
+      size * 0.58, size * (0.09 + Math.abs(i) * 0.012), 31 + i)
+  }
   const rings = mountain(vx, vz, volcanoWidth, volcanoHeight, 12, true)
   const lavaMaterial = new THREE.MeshBasicMaterial({ color: 0xff7930, fog: false, side: THREE.DoubleSide })
   materials.push(lavaMaterial)

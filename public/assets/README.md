@@ -13,7 +13,10 @@ maps and matching desert/harbor palettes elsewhere. The uploaded Animateria volc
 temple, lava and cloud plume. It loads separately so its UVs and textures stay intact.
 The original procedural volcano is a loading/error fallback. Reduced motion freezes the animation.
 The procedural mountains use sky-tinted colors. Both the mountains and island
-bypass local scenery fog to remain visible beyond the forest. The camera range includes the complete backdrop.
+bypass local scenery fog to remain visible beyond the forest. Continuous ground and
+overlapping foothills connect the island to land. Ground fog fades toward the terrain
+palette, while gradual exponential scenery fog keeps the distant tree line visible.
+The camera range includes the complete backdrop.
 
 The vegetation kit adds two grass clumps, a low bush, a fern cluster, and cream
 and lavender wildflower patches. Forest scenery uses deterministic clusters near

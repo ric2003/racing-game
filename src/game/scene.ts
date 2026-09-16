@@ -50,7 +50,8 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   const scene = new THREE.Scene()
   const skyColor = track.theme === 'desert' ? 0xf0c995 : track.theme === 'harbor' ? 0x98bed2 : track.theme === 'forest' ? 0xb8d3c6 : 0x8fd4e8
   scene.background = new THREE.Color(skyColor)
-  scene.fog = new THREE.Fog(skyColor, 90, 260)
+  // Keep the far tree line visible instead of turning it into a solid sky-colored band.
+  scene.fog = new THREE.FogExp2(skyColor, 0.0035)
   const backdrop = createMountainBackdrop(track, skyColor, reducedMotion)
   scene.add(backdrop.group)
   const camera = new THREE.PerspectiveCamera(58, 1, 0.1, backdrop.far)
@@ -73,9 +74,18 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   const bounds = getTrackBounds(track)
   const centerX = (bounds.minX + bounds.maxX) / 2
   const centerZ = (bounds.minZ + bounds.maxZ) / 2
-  const groundRadius = Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) / 2 + 260
+  const groundRadius = backdrop.far * 0.85
   const groundGeometry = new THREE.CircleGeometry(groundRadius, 72)
   const groundMaterial = new THREE.MeshStandardMaterial({ color: track.theme === 'desert' ? 0xdab47b : track.theme === 'harbor' ? 0x668a95 : track.theme === 'forest' ? 0x66845a : 0x4baf69, roughness: 1 })
+  // Ground fades toward distant land, rather than the blue sky used by tree fog.
+  const terrainHaze = new THREE.Color(track.theme === 'desert' ? 0xbba17a : track.theme === 'harbor' ? 0x718d83 : 0x789d79)
+    .lerp(new THREE.Color(skyColor), 0.12)
+  groundMaterial.onBeforeCompile = shader => {
+    shader.uniforms.terrainHaze = { value: terrainHaze }
+    shader.fragmentShader = 'uniform vec3 terrainHaze;\n' + shader.fragmentShader
+    shader.fragmentShader = shader.fragmentShader.replace('#include <fog_fragment>',
+      THREE.ShaderChunk.fog_fragment.replace(/fogColor/g, 'terrainHaze'))
+  }
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
   ground.rotation.x = -Math.PI / 2
   ground.position.set(centerX, -0.09, centerZ)

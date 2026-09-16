@@ -13,8 +13,16 @@ grounds and centers each asset, and turns train models to game +Z. Texture-based
 leaf cards are removed from the wall; modeled vines and the game's foliage remain.
 Sources are left unchanged.
 
-The SDC volcano is **not included**: its Sketchfab download requires authentication.
-The existing procedural volcano remains active.
+## Volcano Island Lowpoly
+
+[Volcano Island Lowpoly](https://sketchfab.com/3d-models/volcano-island-lowpoly-4a6591dc9fee40d8bfda8350683af9af)
+by [Animateria](https://sketchfab.com/Animateria), licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+The GLB was supplied by the user. Its embedded asset metadata records the same author, source, and license.
+The game preserves the geometry and textures, hides the ocean plane, removes imported lights/cameras,
+adjusts material response, scales the island uniformly, and adds cloud motion and lava glow animation.
+The procedural volcano remains only as a loading/error fallback.
+Player-facing credit is linked from the landing page at `/asset-credits.html`.
 
 ## License supplied with the train pack
 
@@ -26,7 +34,7 @@ https://www.patreon.com/quaternius
 -------------------------------------------------------
 
 License:
-CC0 1.0 Universal (CC0 1.0) 
+CC0 1.0 Universal (CC0 1.0)
 Public Domain Dedication
 https://creativecommons.org/publicdomain/zero/1.0/
 

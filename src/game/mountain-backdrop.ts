@@ -5,6 +5,9 @@ import { getTrackBounds, type TrackDefinition } from '../shared/track.js'
 export function createMountainBackdrop(track: TrackDefinition, skyColor: number, reducedMotion: boolean) {
   const group = new THREE.Group()
   group.name = 'mountain-backdrop'
+  const fallback = new THREE.Group()
+  fallback.name = 'procedural-volcano'
+  group.add(fallback)
   const bounds = getTrackBounds(track)
   const centerX = (bounds.minX + bounds.maxX) / 2
   const centerZ = (bounds.minZ + bounds.maxZ) / 2
@@ -60,7 +63,8 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     const mesh = new THREE.Mesh(geometry, mountainMaterial)
     mesh.name = volcano ? 'volcano' : 'green-mountain'
     mesh.position.set(x, 0, z)
-    group.add(mesh)
+    if (volcano) fallback.add(mesh)
+    else group.add(mesh)
     return vertices
   }
 
@@ -86,7 +90,7 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
   crater.name = 'glowing-crater'
   crater.rotation.x = -Math.PI / 2
   crater.position.set(vx, volcanoHeight - 15, vz)
-  group.add(crater)
+  fallback.add(crater)
   // Narrow lava streams follow the actual slope vertices on several faces.
   for (const sector of [2, 6, 10, 13]) {
     const path = [rings[3][sector], rings[2][sector], rings[1][sector]]
@@ -95,7 +99,7 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     geometries.push(geometry)
     const stream = new THREE.Mesh(geometry, lavaMaterial)
     stream.position.set(vx, 0, vz)
-    group.add(stream)
+    fallback.add(stream)
   }
   const smokeGeometry = new THREE.IcosahedronGeometry(1, 1)
   geometries.push(smokeGeometry)
@@ -105,7 +109,7 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     materials.push(material)
     const puff = new THREE.Mesh(smokeGeometry, material)
     puff.name = `volcano-smoke-${i}`
-    group.add(puff)
+    fallback.add(puff)
     return puff
   })
   function update(time: number) {
@@ -122,6 +126,22 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
   update(0)
   return {
     group,
+    setVolcano: (island: THREE.Group) => {
+      const box = new THREE.Box3().setFromObject(island)
+      const dimensions = box.getSize(new THREE.Vector3())
+      const center = box.getCenter(new THREE.Vector3())
+      // Preserve the source proportions, including the authored plume.
+      const scale = Math.min(volcanoWidth * 2 / Math.max(dimensions.x, dimensions.z),
+        size * 0.45 / dimensions.y)
+      const placement = new THREE.Group()
+      placement.name = 'volcano-island-placement'
+      island.position.sub(new THREE.Vector3(center.x, box.min.y, center.z))
+      placement.add(island)
+      placement.scale.setScalar(scale)
+      placement.position.set(vx, -10, vz)
+      group.add(placement)
+      fallback.visible = false
+    },
     far: radius * 2 + size * 3,
     update,
     dispose: () => {

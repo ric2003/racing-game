@@ -141,6 +141,7 @@ function App() {
           <div className="feature-row" aria-label="Game features">
             <span>2–4 racers</span><span>Live rooms</span><span>Items + boosts</span>
           </div>
+          <a className="asset-credits-link" href={`${import.meta.env.BASE_URL}asset-credits.html`} target="_blank" rel="noreferrer">Asset credits</a>
         </section>
 
         <section className="join-card" aria-labelledby="join-heading">

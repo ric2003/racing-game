@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { createMountainBackdrop } from './mountain-backdrop.js'
 import { createSceneryTrain } from './scenery-train.js'
+import { loadVolcanoIsland } from './volcano-island.js'
 import { loadModels, type ModelLibrary } from './models.js'
 import type { HazardSnapshot, ItemBoxSnapshot, KartSnapshot, OilSlickSnapshot, RaceEvent, RacePhase } from '../shared/protocol.js'
 import { createKartMesh, type KartVisual } from './kart-mesh.js'
@@ -87,6 +88,17 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   let models: ModelLibrary | undefined
   let sceneryTrain: ReturnType<typeof createSceneryTrain> | undefined
   let disposed = false
+  let volcanoIsland: Awaited<ReturnType<typeof loadVolcanoIsland>> | undefined
+  void loadVolcanoIsland(reducedMotion).then(island => {
+    if (disposed) {
+      island.dispose()
+      return
+    }
+    volcanoIsland = island
+    backdrop.setVolcano(island.group)
+  }).catch(error => {
+    console.warn('Could not load volcano island; keeping the procedural volcano.', error)
+  })
   void loadModels().then(loaded => {
     if (disposed) {
       loaded.dispose()
@@ -178,6 +190,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   function render(karts: RenderKart[], localId: string, delta: number, cameraId = localId, trackState?: TrackRenderState) {
     elapsedSeconds += delta
     backdrop.update(elapsedSeconds)
+    volcanoIsland?.update(elapsedSeconds)
     sceneryTrain?.update(elapsedSeconds)
     const serverTime = trackState?.serverTime ?? performance.now()
     trackVisual.update(elapsedSeconds, serverTime, trackState?.itemBoxes, trackState?.hazards, trackState?.oilSlicks)
@@ -262,6 +275,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       transientEffects.length = 0
       trackVisual.dispose()
       backdrop.dispose()
+      volcanoIsland?.dispose()
       sceneryTrain?.dispose()
       models?.dispose()
       groundGeometry.dispose()

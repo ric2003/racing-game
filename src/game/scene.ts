@@ -106,7 +106,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
     scene.add(scenery.group)
   }).catch(error => console.warn('Could not load harbor landmarks.', error))
   let volcanoIsland: Awaited<ReturnType<typeof loadVolcanoIsland>> | undefined
-  if (track.theme !== 'harbor') void loadVolcanoIsland(reducedMotion).then(island => {
+  if (!track.theme || track.theme === 'forest') void loadVolcanoIsland(reducedMotion).then(island => {
     if (disposed) {
       island.dispose()
       return
@@ -122,7 +122,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       return
     }
     models = loaded
-    if (track.theme !== 'harbor') {
+    if (!track.theme || track.theme === 'forest') {
       sceneryTrain = createSceneryTrain(track, models, reducedMotion)
       scene.add(sceneryTrain.group)
     }

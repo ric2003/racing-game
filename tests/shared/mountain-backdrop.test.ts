@@ -43,7 +43,7 @@ describe('mountain backdrop', () => {
       const backdrop = createMountainBackdrop(track, 0xb8d3c6, false)
       try {
         backdrop.setVolcano(island.clone(true))
-        if (track.theme === 'harbor') {
+        if (track.theme === 'harbor' || track.theme === 'desert') {
           expect(backdrop.group.getObjectByName('volcano-island-placement')).toBeUndefined()
           expect(backdrop.group.getObjectByName('procedural-volcano')).toBeUndefined()
           expect(backdrop.group.getObjectByName('volcano-smoke-0')).toBeUndefined()
@@ -95,7 +95,7 @@ describe('mountain backdrop', () => {
             }
           }
         }
-        if (track.theme === 'harbor') {
+        if (track.theme === 'harbor' || track.theme === 'desert') {
           expect(backdrop.group.getObjectByName('glowing-crater')).toBeUndefined()
           expect(mountains).toHaveLength(22)
           return

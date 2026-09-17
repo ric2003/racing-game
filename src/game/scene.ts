@@ -99,7 +99,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   let sceneryTrain: ReturnType<typeof createSceneryTrain> | undefined
   let disposed = false
   let volcanoIsland: Awaited<ReturnType<typeof loadVolcanoIsland>> | undefined
-  void loadVolcanoIsland(reducedMotion).then(island => {
+  if (track.theme !== 'harbor') void loadVolcanoIsland(reducedMotion).then(island => {
     if (disposed) {
       island.dispose()
       return
@@ -115,8 +115,10 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       return
     }
     models = loaded
-    sceneryTrain = createSceneryTrain(track, models, reducedMotion)
-    scene.add(sceneryTrain.group)
+    if (track.theme !== 'harbor') {
+      sceneryTrain = createSceneryTrain(track, models, reducedMotion)
+      scene.add(sceneryTrain.group)
+    }
     const nextTrack = createTrackMesh(track, models)
     scene.remove(trackVisual.group)
     trackVisual.dispose()

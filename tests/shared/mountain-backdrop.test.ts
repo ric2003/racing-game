@@ -43,6 +43,12 @@ describe('mountain backdrop', () => {
       const backdrop = createMountainBackdrop(track, 0xb8d3c6, false)
       try {
         backdrop.setVolcano(island.clone(true))
+        if (track.theme === 'harbor') {
+          expect(backdrop.group.getObjectByName('volcano-island-placement')).toBeUndefined()
+          expect(backdrop.group.getObjectByName('procedural-volcano')).toBeUndefined()
+          expect(backdrop.group.getObjectByName('volcano-smoke-0')).toBeUndefined()
+          return
+        }
         const placement = backdrop.group.getObjectByName('volcano-island-placement')!
         const box = new THREE.Box3().setFromObject(placement)
         const bounds = getTrackBounds(track)
@@ -88,6 +94,11 @@ describe('mountain backdrop', () => {
                 box.getSize(new THREE.Vector3()).length() / 2).toBeLessThan(backdrop.far)
             }
           }
+        }
+        if (track.theme === 'harbor') {
+          expect(backdrop.group.getObjectByName('glowing-crater')).toBeUndefined()
+          expect(mountains).toHaveLength(22)
+          return
         }
         const smoke = backdrop.group.getObjectByName('volcano-smoke-3')!
         const before = smoke.position.clone()

@@ -73,9 +73,22 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
   for (let i = 0; i < 22; i++) {
     const angle = volcanoAngle + (i + 1) / 22 * Math.PI * 2
     // Leave the volcano's silhouette free of competing peaks.
-    if (i === 0 || i >= 20) continue
+    if (track.theme !== 'harbor' && (i === 0 || i >= 20)) continue
     mountain(centerX + Math.cos(angle) * radius, centerZ + Math.sin(angle) * radius,
       size * (0.85 + 0.25 * Math.sin(i * 4.3)), size * (0.14 + 0.1 * Math.abs(Math.sin(i * 2.1))), i)
+  }
+  if (track.theme === 'harbor') {
+    group.remove(fallback)
+    return {
+      group,
+      setVolcano: () => { /* Harbor maps only use the mountain range. */ },
+      far: radius * 2 + size * 3,
+      update: () => { /* No animated landmark on harbor maps. */ },
+      dispose: () => {
+        geometries.forEach(geometry => geometry.dispose())
+        materials.forEach(material => material.dispose())
+      },
+    }
   }
   const vx = centerX + Math.cos(volcanoAngle) * radius
   const vz = centerZ + Math.sin(volcanoAngle) * radius

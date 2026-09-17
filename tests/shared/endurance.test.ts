@@ -6,7 +6,7 @@ import { stepKart } from '../../src/shared/simulation.js'
 import { createTrackMesh } from '../../src/game/track-mesh.js'
 import { parseClientMessage } from '../../server/validation.js'
 
-const longTracks = TRACKS.filter((track) => track.theme)
+const longTracks = TRACKS.filter((track) => track.endurance)
 
 describe('endurance circuits', () => {
   it('adds three circuits and accepts a one-lap race', () => {

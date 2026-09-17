@@ -1,3 +1,4 @@
+import { loadHarborScenery } from './harbor-scenery.js'
 import * as THREE from 'three'
 import { createMountainBackdrop } from './mountain-backdrop.js'
 import { createSceneryTrain } from './scenery-train.js'
@@ -98,6 +99,12 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
   let models: ModelLibrary | undefined
   let sceneryTrain: ReturnType<typeof createSceneryTrain> | undefined
   let disposed = false
+  let harborScenery: Awaited<ReturnType<typeof loadHarborScenery>> | undefined
+  if (track.theme === 'harbor') void loadHarborScenery(track).then(scenery => {
+    if (disposed) { scenery.dispose(); return }
+    harborScenery = scenery
+    scene.add(scenery.group)
+  }).catch(error => console.warn('Could not load harbor landmarks.', error))
   let volcanoIsland: Awaited<ReturnType<typeof loadVolcanoIsland>> | undefined
   if (track.theme !== 'harbor') void loadVolcanoIsland(reducedMotion).then(island => {
     if (disposed) {
@@ -289,6 +296,7 @@ export function createRaceScene(canvas: HTMLCanvasElement, reducedMotion: boolea
       backdrop.dispose()
       volcanoIsland?.dispose()
       sceneryTrain?.dispose()
+      harborScenery?.dispose()
       models?.dispose()
       groundGeometry.dispose()
       groundMaterial.dispose()

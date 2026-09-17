@@ -73,3 +73,13 @@ of its swing. The gantry and cable use code geometry to fit each hazard's locati
 ```sh
 blender --background --python scripts/build-cannonball.py -- public/assets/racing/cannonball.glb /home/ric/blender-projects/arcade-racing-pack/cannonball.blend
 ```
+
+## Map-specific harbor landmarks
+
+Neon Harbor uses the Quaternius cruise liner in a bounded water basin with a
+concrete quay and breakwaters. Harbor Grand Prix uses Kenney warehouse/factory
+yards with paired storage tanks. `src/game/harbor-scenery.ts` loads only the
+selected map's assets, preserves texture UVs and owns their resource disposal.
+Yard footprints are checked against the entire road; the terminal lies beyond
+an oriented bounding box of the complete short circuit. Other maps load neither
+set. The sources and export instructions are recorded in SCENERY-CREDITS.md.

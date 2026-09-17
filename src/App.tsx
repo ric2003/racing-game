@@ -253,12 +253,12 @@ function App() {
                 <div className="track-selection-fields">
                   <label htmlFor="race-track">Track</label>
                   <select id="race-track" value={settings.trackId} disabled={!isHost} onChange={(event) => client.updateRaceSettings({ ...settings, trackId: event.target.value })}>
-                    {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}{getTrack(track.id).theme ? ' · Long' : ''}</option>)}
+                    {(network.lobby.trackOptions ?? []).map((track) => <option key={track.id} value={track.id}>{track.name}{getTrack(track.id).endurance ? ' · Long' : ''}</option>)}
                   </select>
-                  <p className="lobby-hint">{getTrack(settings.trackId).theme ? 'Endurance circuit. 10× distance.' : 'Short circuit'}</p>
+                  <p className="lobby-hint">{getTrack(settings.trackId).endurance ? 'Endurance circuit. 10× distance.' : 'Short circuit'}</p>
                 </div>
               </div>
-              {getTrack(settings.trackId).theme && <p className="lobby-hint">One lap is a good place to start.</p>}
+              {getTrack(settings.trackId).endurance && <p className="lobby-hint">One lap is a good place to start.</p>}
               {voteCount > 0 && <p className="lobby-hint">{voteCount} {voteCount === 1 ? 'vote' : 'votes'} cast. Most-voted track wins.</p>}
               <fieldset className="lap-picker" disabled={!isHost}>
                 <legend>Laps</legend>

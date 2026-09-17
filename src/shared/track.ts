@@ -42,6 +42,7 @@ export interface TrackDefinition {
   itemBoxes: Point2[]
   hazards: HazardDefinition[]
   theme?: 'forest' | 'harbor' | 'desert'
+  endurance?: boolean
 }
 
 const TRACK_ANCHORS: Point2[] = [
@@ -149,9 +150,9 @@ function pointAtProgress(points: Point2[], progress: number, lateralOffset = 0):
   }
 }
 
-function buildTrack(id: string, name: string, points: Point2[], hazardPlacements: HazardPlacement[] = [], theme?: TrackDefinition['theme']): TrackDefinition {
-  const checkpoints = buildCheckpoints(points, theme ? 64 : CHECKPOINT_COUNT)
-  const itemBoxes = (theme ? Array.from({ length: 64 }, (_, index) => (index + 0.5) / 64) : [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94])
+function buildTrack(id: string, name: string, points: Point2[], hazardPlacements: HazardPlacement[] = [], theme?: TrackDefinition['theme'], endurance = false): TrackDefinition {
+  const checkpoints = buildCheckpoints(points, endurance ? 64 : CHECKPOINT_COUNT)
+  const itemBoxes = (endurance ? Array.from({ length: 64 }, (_, index) => (index + 0.5) / 64) : [0.08, 0.19, 0.31, 0.44, 0.57, 0.7, 0.83, 0.94])
     .map((progress, index) => pointAtProgress(points, progress, index % 2 === 0 ? -3.1 : 3.1))
   const hazards = hazardPlacements.map(({ progress, lateralOffset = 0, ...hazard }) => ({
     ...hazard,
@@ -167,6 +168,7 @@ function buildTrack(id: string, name: string, points: Point2[], hazardPlacements
     itemBoxes,
     hazards,
     theme,
+    endurance,
   }
 }
 
@@ -215,7 +217,7 @@ export const TRACKS: TrackDefinition[] = [
   buildTrack('neon-harbor', 'Neon Harbor', HARBOR_POINTS, [
     { id: 'harbor-boost-1', type: 'boost-pad', progress: 0.17, radius: 2.6 },
     { id: 'harbor-barrier', type: 'moving-barrier', progress: 0.48, lateralOffset: -2.8, radius: 1.9, periodMs: 3_200, phase: 0.5 },
-  ]),
+  ], 'harbor'),
   buildTrack('skyway-switchbacks', 'Skyway Switchbacks', SWITCHBACK_POINTS, [
     { id: 'skyway-boost-1', type: 'boost-pad', progress: 0.72, radius: 2.6 },
     { id: 'skyway-barrier', type: 'moving-barrier', progress: 0.27, lateralOffset: 2.8, radius: 1.9, periodMs: 4_100, phase: 0.25 },
@@ -232,7 +234,7 @@ for (const layout of LONG_LAYOUTS) {
     progress: (index + 0.4) / 8, lateralOffset: index % 2 ? -2.8 : 2.8,
     periodMs: 3_600 + index * 100, phase: index / 8,
   })
-  TRACKS.push(buildTrack(layout.id, layout.name, buildLongCircuit(layout.anchors), hazards, layout.theme))
+  TRACKS.push(buildTrack(layout.id, layout.name, buildLongCircuit(layout.anchors), hazards, layout.theme, true))
 }
 
 export const TRACK_DEFINITIONS = TRACKS

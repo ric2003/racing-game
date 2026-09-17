@@ -38,3 +38,17 @@ CC0 1.0 Universal (CC0 1.0)
 Public Domain Dedication
 https://creativecommons.org/publicdomain/zero/1.0/
 
+
+## Harbor scenery
+
+- Cruise liner: Quaternius Ships Pack, https://quaternius.com/packs/ships.html,
+  CC0 1.0. Exported from CruiseShip.blend with its Windows.png texture using
+  scripts/export-harbor-ship.py. Rebuilt legacy materials, centered the model and
+  scaled it uniformly at runtime. Used only on Neon Harbor.
+- Warehouse, factory and large storage tank: Kenney City Kit (Industrial) 2.0,
+  https://kenney.nl/assets/city-kit-industrial, CC0 1.0. Original building-i.glb,
+  building-m.glb and detail-tank-large.glb with Textures/colormap.png. Used only
+  on Harbor Grand Prix. Runtime placement uses uniform scale.
+- Basin, quay, breakwaters, bollards and concrete yards: project-generated geometry.
+
+Sources retrieved 2026-09-17. Both packs permit personal and commercial use.

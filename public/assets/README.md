@@ -83,3 +83,13 @@ selected map's assets, preserves texture UVs and owns their resource disposal.
 Yard footprints are checked against the entire road; the terminal lies beyond
 an oriented bounding box of the complete short circuit. Other maps load neither
 set. The sources and export instructions are recorded in SCENERY-CREDITS.md.
+
+## Desert Endurance
+
+The desert-only scene adds all 30 dglopez Western Desert free models and all 25
+GLBs supplied in JellySquish Oasis Base. Dry plants and eroded rocks follow the
+route; houses, platforms, palms, pool and supplies form a single settlement.
+Original pack downloads remain outside the repository. The Blender build script
+assembles a game-specific GLB with shared meshes/materials and a placement
+manifest. src/game/desert-scenery.ts preserves textures and disposes scene-owned
+resources. Other maps do not load this scene.

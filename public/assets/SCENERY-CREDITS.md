@@ -52,3 +52,24 @@ https://creativecommons.org/publicdomain/zero/1.0/
 - Basin, quay, breakwaters, bollards and concrete yards: project-generated geometry.
 
 Sources retrieved 2026-09-17. Both packs permit personal and commercial use.
+
+## Desert Endurance free scenery
+
+Game-specific scene assembled from:
+- dglopez, Western Desert free 30-model edition:
+  https://dglopez.itch.io/low-poly-western-desert-asset-pack-30-free-models
+- JellySquish, Oasis Base Version:
+  https://jellysquish.itch.io/oasis-pack
+
+Downloaded 2026-09-18. The supplied Oasis base archive contains 25 GLB models,
+not the 27 advertised. All 30 Western and all 25 Oasis GLBs are used.
+Both included licenses permit personal and commercial game use and adaptation;
+neither is CC0. They prohibit redistribution of standalone asset files. Original
+archives and editable source assets remain outside this repository. The shipped
+GLB is an assembled game scene, with normalized origins, uniform scaling and
+map-specific placements, not a downloadable source pack. The pool is original
+project geometry. Paid versions and the paid Raft pack are not included.
+
+Rebuild using scripts/build-desert-scenery.py with the extracted free packs and
+Desert Endurance track JSON. The adjacent scene manifest records every placement
+and source model for road-clearance and completeness checks.

@@ -82,7 +82,7 @@ describe('mountain backdrop', () => {
         backdrop.group.updateMatrixWorld(true)
         const mountains: THREE.Object3D[] = []
         backdrop.group.traverse(child => {
-          if (child.name === 'green-mountain' || child.name === 'volcano') mountains.push(child)
+          if (child.name === 'green-mountain' || child.name === 'volcano' || child.name === 'desert-pyramid') mountains.push(child)
         })
         for (const mountain of mountains) {
           const box = new THREE.Box3().setFromObject(mountain)
@@ -97,7 +97,8 @@ describe('mountain backdrop', () => {
         }
         if (track.theme === 'harbor' || track.theme === 'desert') {
           expect(backdrop.group.getObjectByName('glowing-crater')).toBeUndefined()
-          expect(mountains).toHaveLength(22)
+          expect(mountains).toHaveLength(track.theme === 'desert' ? 9 : 22)
+          if (track.theme === 'desert') expect(mountains.every(mesh => mesh.name === 'desert-pyramid')).toBe(true)
           return
         }
         const smoke = backdrop.group.getObjectByName('volcano-smoke-3')!

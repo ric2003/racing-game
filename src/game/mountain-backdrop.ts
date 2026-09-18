@@ -70,10 +70,34 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
 
   const start = track.checkpoints[0]
   const volcanoAngle = Math.atan2(start.normalZ, start.normalX) + 0.32
-  for (let i = 0; i < 22; i++) {
-    const angle = volcanoAngle + (i + 1) / 22 * Math.PI * 2
+  const desert = track.theme === 'desert'
+  const peakCount = desert ? 9 : 22
+  for (let i = 0; i < peakCount; i++) {
+    const angle = volcanoAngle + (i + 1) / peakCount * Math.PI * 2
     // Leave the volcano's silhouette free of competing peaks.
     if ((!track.theme || track.theme === 'forest') && (i === 0 || i >= 20)) continue
+    if (desert) {
+      const height = size * (0.38 + 0.16 * ((i * 7 % 5) / 4))
+      const geometry = new THREE.ConeGeometry(height * 1.05, height, 4, 1).toNonIndexed()
+      geometry.rotateY(Math.PI / 4 + i * 0.17)
+      const normals = geometry.getAttribute('normal')
+      const colors: number[] = []
+      const light = new THREE.Vector3(-0.6, 0.8, -0.4).normalize()
+      for (let vertex = 0; vertex < normals.count; vertex++) {
+        const normal = new THREE.Vector3().fromBufferAttribute(normals, vertex)
+        const shade = 0.62 + 0.38 * Math.max(0, normal.dot(light))
+        const color = new THREE.Color(0xd6ae6c).multiplyScalar(shade).lerp(sky, 0.2)
+        colors.push(color.r, color.g, color.b)
+      }
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+      geometries.push(geometry)
+      const pyramid = new THREE.Mesh(geometry, mountainMaterial)
+      pyramid.name = 'desert-pyramid'
+      pyramid.position.set(centerX + Math.cos(angle) * radius, height / 2 - 3,
+        centerZ + Math.sin(angle) * radius)
+      group.add(pyramid)
+      continue
+    }
     mountain(centerX + Math.cos(angle) * radius, centerZ + Math.sin(angle) * radius,
       size * (0.85 + 0.25 * Math.sin(i * 4.3)), size * (0.14 + 0.1 * Math.abs(Math.sin(i * 2.1))), i)
   }
@@ -81,7 +105,7 @@ export function createMountainBackdrop(track: TrackDefinition, skyColor: number,
     group.remove(fallback)
     return {
       group,
-      setVolcano: () => { /* Harbor and desert maps only use the mountain range. */ },
+      setVolcano: () => { /* Harbor mountains and desert pyramids have no volcano. */ },
       far: radius * 2 + size * 3,
       update: () => { /* No animated landmark on harbor or desert maps. */ },
       dispose: () => {
